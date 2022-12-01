@@ -301,6 +301,7 @@ def filter_datastore(ts, jobs_data, names_data):
     State(ids.NAME_SEARCH_INPUT, "value"),
     State('names-data', 'data'),
     prevent_initial_call=True,
+    memoize=True,
 )
 def search_names(n_clicks, search_name, dff_names):
     print('inside search_names:')
