@@ -113,7 +113,7 @@ df_names = pd.concat([df_names,
 )
 all_names = df_names[DataSchema.NAME].tolist()
 unique_names = list(set(all_names))
-
+print(len(df_names))
 # ------------- create html components --------------------
 initial_wage_container = html.Div(
         id = ids.INITIAL_WAGE_CONTAINER,
@@ -303,6 +303,8 @@ def filter_datastore(ts, jobs_data, names_data):
     prevent_initial_call=True,
 )
 def search_names(n_clicks, search_name, dff_names):
+    print(len(df_names))
+    
     # handle if names is empty
     if (search_name is None) or (dff_names is None):
         raise PreventUpdate
