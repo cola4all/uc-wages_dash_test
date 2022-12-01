@@ -304,8 +304,8 @@ def filter_datastore(ts, jobs_data, names_data):
 )
 def search_names(n_clicks, search_name, dff_names):
     # handle if names is empty
-    if search_name is None:
-        return '', ''
+    if (search_name is None) or (dff_names is None):
+        raise PreventUpdate
 
     # handle if no matches (maybe no need)
 
@@ -315,7 +315,7 @@ def search_names(n_clicks, search_name, dff_names):
     
     # handle if too many matches (todo: leave message)
     if len(unique_names_match) > 200:
-        return ''
+        raise PreventUpdate
 
     # build df where each row is a unique employee w/ an employee name col and a years available col
     table_data_records_list = []
