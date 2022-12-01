@@ -84,12 +84,10 @@ df_names = pd.read_csv(
     NAME_1_DATA_PATH,
     usecols=[
         DataSchema.NAME,
-        DataSchema.JOB,
         DataSchema.PAY,
         DataSchema.YEAR],
     dtype={
         DataSchema.NAME: str,
-        DataSchema.JOB: str,
         DataSchema.PAY: float,
         DataSchema.YEAR: str
     }
@@ -100,13 +98,11 @@ df_names = pd.concat([df_names,
         NAME_2_DATA_PATH,
         usecols=[
             DataSchema.NAME,
-            DataSchema.JOB,
             DataSchema.PAY,
             DataSchema.YEAR
         ],
         dtype={
             DataSchema.NAME: str,
-            DataSchema.JOB: str,
             DataSchema.PAY: float,
             DataSchema.YEAR: str
         }
