@@ -16,8 +16,7 @@ app.title = "UC Employee Wages Dashboard"
 # define paths
 APP_PATH = str(pathlib.Path(__file__).parent.resolve())
 JOB_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries.csv")
-NAME_1_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name_1.csv")
-NAME_2_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name_2.csv")    # break into 2 files to fit w/in github size limits
+NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
 
 # create schemas so that you don't need to remember the labels
 class DataSchema:
@@ -81,36 +80,22 @@ all_jobs = df_jobs[DataSchema.JOB].tolist()
 unique_jobs = list(set(all_jobs))
 
 df_names = pd.read_csv(
-    NAME_1_DATA_PATH,
+    NAME_DATA_PATH,
     usecols=[
         DataSchema.NAME,
         DataSchema.PAY,
         DataSchema.YEAR],
     dtype={
-        DataSchema.NAME: str,
+        DataSchema.NAME: "category",
         DataSchema.PAY: float,
-        DataSchema.YEAR: str
+        DataSchema.YEAR: int
     }
 )
 
-df_names = pd.concat([df_names, 
-    pd.read_csv(
-        NAME_2_DATA_PATH,
-        usecols=[
-            DataSchema.NAME,
-            DataSchema.PAY,
-            DataSchema.YEAR
-        ],
-        dtype={
-            DataSchema.NAME: str,
-            DataSchema.PAY: float,
-            DataSchema.YEAR: str
-        }
-    )]
-)
 all_names = df_names[DataSchema.NAME].tolist()
 unique_names = list(set(all_names))
 print(len(df_names))
+
 # ------------- create html components --------------------
 initial_wage_container = html.Div(
         id = ids.INITIAL_WAGE_CONTAINER,
@@ -274,7 +259,8 @@ app.layout = html.Div(
         # data stores
         dcc.Store(id='jobs-data'),
         dcc.Store(id='names-data'),
-        dcc.Store(id='unique-names')
+        dcc.Store(id='unique-names'),
+        dcc.Store(id='table-data-records-list')
     ]
 )
 
@@ -286,12 +272,11 @@ app.layout = html.Div(
     Input('jobs-data', 'modified_timestamp'),
     State('jobs-data', 'data'),
     State('names-data', 'data'),
-    State('unique-names', 'data'))
+    State('unique-names', 'data'),
+    blocking = True)
 def filter_datastore(ts, jobs_data, names_data, unique_names_data):
 
     # names_data can be filtered by year? and earnings?
-
-
     if (jobs_data is None) and (names_data is None) and (unique_names_data is None):
         return df_jobs, df_names, unique_names
     else:
@@ -300,42 +285,17 @@ def filter_datastore(ts, jobs_data, names_data, unique_names_data):
 # ------------- callback - search names in data frame ----------------
 @app.callback(
     Output(ids.NAME_SEARCH_RESULTS_CONTAINER, 'children'),
-    Input(ids.NAME_SEARCH_BUTTON, 'n_clicks'), 
+    Input(ids.NAME_SEARCH_BUTTON, 'n_clicks'),
     State(ids.NAME_SEARCH_INPUT, "value"),
+    State('names-data','data'),
     prevent_initial_call=True,
+    memoize = True,
+    blocking = True,
 )
-def search_names(n_clicks, search_name):
-    print('load data in search_names:')
-    t0=time.time()
-
-    dff_names = pd.read_csv(
-        NAME_1_DATA_PATH,
-        usecols=[
-            DataSchema.NAME,
-            DataSchema.YEAR],
-        dtype={
-            DataSchema.NAME: str,
-            DataSchema.YEAR: str
-        }
-    )
-
-    dff_names = pd.concat([dff_names, 
-        pd.read_csv(
-            NAME_2_DATA_PATH,
-            usecols=[
-                DataSchema.NAME,
-                DataSchema.YEAR
-            ],
-            dtype={
-                DataSchema.NAME: str,
-                DataSchema.YEAR: str
-            }
-        )]
-    )
-
-    print(time.time() - t0)
-
+def search_names(n_clicks, search_name, dff_names):
+    print('entered search_names:')
     print(search_name)
+    t0=time.time()
     # handle if names is empty
     if (search_name is None) or (dff_names is None):
         raise PreventUpdate
@@ -344,8 +304,12 @@ def search_names(n_clicks, search_name):
 
     # display unique matches
     df_names_match = dff_names[dff_names.loc[:,DataSchema.NAME].str.contains(search_name.casefold().strip(), regex=False)]
+    print('pandas str contains:')
+    print(time.time() - t0)
+
+    t0=time.time()
     unique_names_match = list(set(df_names_match[DataSchema.NAME]))
-    print('hi')
+
     # handle if too many matches (todo: leave message)
     if len(unique_names_match) > 200:
         raise PreventUpdate
@@ -359,7 +323,9 @@ def search_names(n_clicks, search_name):
             DataSchema.NAME: name, 
             'Years Available': years_available_str
         })
-    print('hello')
+    print('rest of the script:')
+    print(time.time() - t0)   
+
     name_search_results_container_updated = html.Div(
         children = [
             html.Label('Select a name to add to the plots'),
@@ -370,7 +336,6 @@ def search_names(n_clicks, search_name):
             )
         ]
     )
-    print('hey')
     return name_search_results_container_updated
 
 # ------------- callback - add selected name from table to the dropdown ----------------
@@ -383,6 +348,7 @@ def search_names(n_clicks, search_name):
     State(ids.NAME_ADDED_DROPDOWN, "value"),
     State(ids.NAME_ADDED_DROPDOWN, "options"),
     prevent_initial_call=True,
+    blocking = True,
 )
 def add_name_to_dropdown(n_clicks, active_cell, data, value, options):
     if active_cell is None:
