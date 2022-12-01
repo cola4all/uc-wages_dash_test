@@ -1,0 +1,200 @@
+html {
+    background: #c2e2f3;
+    margin: 0px;
+    padding: 0px;
+}
+
+body {
+    background: #c2e2f3;
+    margin: 0px;
+    padding: 0px;
+}
+
+hr {
+    border-top: 2px solid #00A3AD;
+}
+
+.app-div{
+    margin: 0;
+    padding: 0;
+    width: 100%;
+} 
+
+.title-container {
+    width: 100%;
+    text-align: left;
+    background: #005581;
+    color: whitesmoke;
+    padding-left: 1rem;
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+
+.inputs-container {
+    background: #6c9fb9;
+    padding: 1rem;
+    border-radius: 1rem;
+}
+
+.dropdown-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    grid-template-rows: 2rem 1fr;
+    column-gap: 1rem;
+    border-style: none;
+}
+
+.button {
+    border-radius: .3rem;
+    border-style: solid;
+    border-color: #27489b;
+    background-color: #395d93;
+    color: #edf3f2;
+}
+
+#name-container {
+    background: #6c9fb9;
+    padding: 1rem;
+    border-radius: 1rem;
+    margin-top: 1rem;
+}
+
+#name-search-input {
+    margin-left: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+#initial-wage-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+}
+
+#initial-wage-dropdown {
+    grid-column: 1 / span 2;
+    grid-row: 2;
+}
+
+#initial-wage-input {
+    grid-column: 3;
+    grid-row: 2;
+}
+
+#job-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+}
+
+#rate-job-dropdown {
+    grid-column: 1 / span 4;
+    grid-row: 2;
+}
+
+#name-label {
+    grid-column: 1 / span 4;
+    grid-row: 1;
+    align-self: end;
+}
+
+#rate-name-dropdown {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+#cola-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+}
+
+#rate-cola-dropdown {
+    grid-column: 1 / span 2;
+    grid-row: 2;
+}
+
+#year-range-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+}
+
+#year-range-slider {
+    grid-column: 1 / span 4;
+    grid-row: 2;
+}
+
+#year-range-slider .rc-slider-track {
+    background-color: #39619d;
+    height: 4px;
+}
+
+#year-range-slider .rc-slider-rail {
+    background-color: #8fa6c9;
+}
+
+#initial-wage-label {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+}
+
+.rc-slider-mark {
+    font-size: 1rem;
+}
+.rc-slider-mark-text {
+    color: #1b232f;
+}
+
+
+.dropdown-button {
+    width: 100%;
+    margin-top: 5px;
+}
+
+.tabs-group {
+    padding-top: 20px;
+}
+
+.app-div {
+    padding: 10px;
+}
+
+.data-table-div {
+    margin: auto;
+    padding: 10px;
+}
+
+.budget-label {
+    font-size: 20px;
+    font-weight: bold;
+}
+
+.budget-text {
+    font-size: 20px;
+}
+
+.budget-text-value {
+    font-size: 20px;
+    font-style: italic;
+}
+
+.budget-progress-bar {
+    height: 20px;
+}
+
+.budget-tooltip {
+    font-size: 18px;
+}
+
+.checklist {
+    text-align: center;
+    padding-top: 10px;
+    padding-bottom: 20px;
+}
+
+@media(max-width: 800px) {
+    .dropdown-container {
+        grid-template-columns: 1fr;
+    }
+}
