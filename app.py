@@ -303,8 +303,9 @@ def filter_datastore(ts, jobs_data, names_data):
     prevent_initial_call=True,
 )
 def search_names(n_clicks, search_name, dff_names):
+    print('inside search_names:')
     print(len(df_names))
-    
+    print(search_name)
     # handle if names is empty
     if (search_name is None) or (dff_names is None):
         raise PreventUpdate
@@ -314,7 +315,7 @@ def search_names(n_clicks, search_name, dff_names):
     # display unique matches
     df_names_match = dff_names[dff_names.loc[:,DataSchema.NAME].str.contains(search_name.casefold().strip(), regex=False)]
     unique_names_match = list(set(df_names_match[DataSchema.NAME]))
-    
+    print('hi')
     # handle if too many matches (todo: leave message)
     if len(unique_names_match) > 200:
         raise PreventUpdate
@@ -328,7 +329,7 @@ def search_names(n_clicks, search_name, dff_names):
             DataSchema.NAME: name, 
             'Years Available': years_available_str
         })
-    
+    print('hello')
     name_search_results_container_updated = html.Div(
         children = [
             html.Label('Select a name to add to the plots'),
@@ -339,7 +340,7 @@ def search_names(n_clicks, search_name, dff_names):
             )
         ]
     )
-
+    print('hey')
     return name_search_results_container_updated
 
 # ------------- callback - add selected name from table to the dropdown ----------------
