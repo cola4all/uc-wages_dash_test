@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import os, pathlib
 
-app = DashProxy(transforms=[ServersideOutputTransform()], external_stylesheets=[dbc.themes.FLATLY])
+app = DashProxy(__name__, transforms=[ServersideOutputTransform()], external_stylesheets=[dbc.themes.FLATLY], assets_folder='assets')
 server = app.server
 
 app.title = "UC Employee Wages Dashboard"
@@ -58,7 +58,7 @@ class colors:
     START_MARKER_COLOR = "#759356"
     LOLLIPOP_LINE_COLOR = "#7B7B7B"
     GRID_LINES_COLOR = "#C5CCCA"
-
+    
 # load data
 df_jobs = pd.read_csv(
     JOB_DATA_PATH,
@@ -113,8 +113,6 @@ df_names = pd.concat([df_names,
 )
 all_names = df_names[DataSchema.NAME].tolist()
 unique_names = list(set(all_names))
-
-
 
 # ------------- create html components --------------------
 initial_wage_container = html.Div(
@@ -227,14 +225,6 @@ name_add_container = html.Div(
     ]
 )
 
-dropdown_rate_name = dcc.Dropdown(
-    id=ids.RATE_NAME_DROPDOWN,
-    options=unique_names,
-    value=[],
-    multi=True
-)
-
-
 # create layout
 app.layout = html.Div(
     className="app-div",
@@ -298,6 +288,7 @@ app.layout = html.Div(
     State('jobs-data', 'data'),
     State('names-data', 'data'))
 def filter_datastore(ts, jobs_data, names_data):
+
     if (jobs_data is None) and (names_data is None):
         return df_jobs, df_names
     else:
