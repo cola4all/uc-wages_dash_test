@@ -6,6 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
 import os, pathlib
+import time
 
 app = DashProxy(__name__, transforms=[ServersideOutputTransform()], external_stylesheets=[dbc.themes.FLATLY], assets_folder='assets')
 server = app.server
@@ -276,7 +277,8 @@ app.layout = html.Div(
 
         # data stores
         dcc.Store(id='jobs-data'),
-        dcc.Store(id='names-data')
+        dcc.Store(id='names-data'),
+        dcc.Store(id='unique-names')
     ]
 )
 
@@ -284,13 +286,18 @@ app.layout = html.Div(
 @app.callback(
     ServersideOutput("jobs-data", "data"), 
     ServersideOutput("names-data",'data'),
+    ServersideOutput('unique-names','data'),
     Input('jobs-data', 'modified_timestamp'),
     State('jobs-data', 'data'),
-    State('names-data', 'data'))
-def filter_datastore(ts, jobs_data, names_data):
+    State('names-data', 'data'),
+    State('unique-names', 'data'))
+def filter_datastore(ts, jobs_data, names_data, unique_names_data):
 
-    if (jobs_data is None) and (names_data is None):
-        return df_jobs, df_names
+    # names_data can be filtered by year? and earnings?
+
+
+    if (jobs_data is None) and (names_data is None) and (unique_names_data is None):
+        return df_jobs, df_names, unique_names
     else:
         raise PreventUpdate
     
@@ -299,13 +306,39 @@ def filter_datastore(ts, jobs_data, names_data):
     Output(ids.NAME_SEARCH_RESULTS_CONTAINER, 'children'),
     Input(ids.NAME_SEARCH_BUTTON, 'n_clicks'), 
     State(ids.NAME_SEARCH_INPUT, "value"),
-    State('names-data', 'data'),
     prevent_initial_call=True,
-    memoize=True,
 )
-def search_names(n_clicks, search_name, dff_names):
-    print('inside search_names:')
-    print(len(df_names))
+def search_names(n_clicks, search_name):
+    print('load data in search_names:')
+    t0=time.time()
+
+    dff_names = pd.read_csv(
+        NAME_1_DATA_PATH,
+        usecols=[
+            DataSchema.NAME,
+            DataSchema.YEAR],
+        dtype={
+            DataSchema.NAME: str,
+            DataSchema.YEAR: str
+        }
+    )
+
+    dff_names = pd.concat([dff_names, 
+        pd.read_csv(
+            NAME_2_DATA_PATH,
+            usecols=[
+                DataSchema.NAME,
+                DataSchema.YEAR
+            ],
+            dtype={
+                DataSchema.NAME: str,
+                DataSchema.YEAR: str
+            }
+        )]
+    )
+
+    print(time.time() - t0)
+
     print(search_name)
     # handle if names is empty
     if (search_name is None) or (dff_names is None):
