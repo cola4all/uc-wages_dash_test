@@ -115,7 +115,8 @@ initial_wage_container = html.Div(
                 value = df_jobs.loc[(df_jobs[DataSchema.NAME]=="GSR (Step 1)") & (df_jobs[DataSchema.YEAR]==2011), DataSchema.PAY].iloc[0],
                 type="number", 
                 placeholder="",
-                debounce=True)
+                debounce=True
+            ),
         ]
 )
 
@@ -214,17 +215,34 @@ app.layout = html.Div(
         # data stores
         dcc.Store(id='filtered-names-data'),
         dcc.Store(id='filtered-jobs-data'),
+        dcc.Store(id='filtered-combined-data'),
         dcc.Store(id='jobs-data'),
         dcc.Store(id='names-data'),
         dcc.Store(id='table-data-records-list'),
-
+        dcc.Store(id='traces-in-real-wages'),
+        dcc.Store(id='traces-in-projected-wages'),
         html.Div(
             className = "title-container",
             children=[
                 html.H1(app.title),
-                html.H3('How does your compensation stack up?'),
-                html.Hr(),
-                html.H4("by POISE"),
+                html.H5('How does your compensation stack up?'),
+                html.H6('A project by Collective Thinking')
+            ]
+        ),
+        dbc.Accordion(
+            children = [
+                dbc.AccordionItem(
+                    [
+                        html.P('Please select one of the following types of compensation:'),
+                        dcc.Dropdown(
+                            options = ['Total Pay', 'Pay', 'Pay and Benefits'],
+                            value = ['Pay and Benefits'],
+                            multi=False,
+                            clearable = False
+                        ),
+                    ],
+                    title="Type of compensation"
+                )
             ]
         ),
         html.Div(
@@ -263,22 +281,17 @@ app.layout = html.Div(
         html.H6('Placeholder for comparing wrt COL'),
         html.H6('Placeholder for something about data sources'),
 
-        # landing dialog
-        # dcc.ConfirmDialog(
-        #     displayed=True,
-        #     id='landing-dialog',
-        #     message='hi'
-        # )
         dbc.Modal(
             children = [
-                dbc.ModalHeader(dbc.ModalTitle("Welcome!")),
-                dbc.ModalBody("hi"),
+                dbc.ModalHeader(dbc.ModalTitle("UC My Wages")),
+                dbc.ModalBody("Welcome! This dashboard visualizes publicly available data on UC employee compensation. Please bear with us if you encounter any bugs, as this project is under active development."),
                 dbc.ModalFooter(
                     dbc.Button("Close", id="close-modal-button")
                 ),
             ],
             is_open=True,
-            id='landing-modal'
+            id='landing-modal',
+            centered=True
 
         )
     ]
@@ -344,11 +357,10 @@ def search_names(n_clicks, search_name, dff_names):
     if len(unique_names_match) > 200:
         too_many_matches = html.Div(
             children = [
-                html.Label('Too many results to show. Please enter a more specific name.'),
+                html.Label('Found too many matching results. Please enter a more specific name.'),
             ]
         )
         return too_many_matches
-
 
     # build df where each row is a unique employee w/ an employee name col and a years available col
     table_data_records_list = []
@@ -425,26 +437,22 @@ def update_initial_wage_input(dropdown_value, input_value, years):
     return dropdown_value, input_value
 
 #------------- callback - filtered-names-data -----------------
-# triggered (1) when name is added/dropped or (2) year range slider is moved
+# triggered (1) when name is added/dropped or (2) year range slider is moved (3) initial creation of data store
 # filters by names detected in dropdown menu and year range
 @app.callback(
     ServersideOutput('filtered-names-data', 'data'),
     Input(ids.NAME_ADDED_DROPDOWN, "value"),
-    Input(ids.YEAR_RANGE_SLIDER, 'value'),
     Input('names-data','data'),
     prevent_initial_call = True
 )
-def filter_names_data(names, years, df_names):
+def filter_names_data(names, df_names):
     if names is None:
         raise PreventUpdate
-
-    min_year = years[0]
-    max_year = years[1]
 
     # IMPORTANT when dealing with categories (cat.remove_unused_categories)
     print('in filter_names_data:')
     t0 = time.time()
-    logical_array = (df_names[DataSchema.NAME].isin(names)) & (df_names[DataSchema.YEAR].astype(int) >= int(min_year)) & (df_names[DataSchema.YEAR].astype(int) <= int(max_year))
+    logical_array = (df_names[DataSchema.NAME].isin(names))
     df_names_filtered = df_names.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
     df_names_filtered = df_names_filtered.merge(df_names.loc[(df_names[DataSchema.NAME].isin(names)),DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
     print(time.time() - t0)
@@ -460,22 +468,17 @@ def filter_names_data(names, years, df_names):
 @app.callback(
     ServersideOutput('filtered-jobs-data', 'data'),
     Input(ids.RATE_JOB_DROPDOWN, "value"),
-    Input(ids.YEAR_RANGE_SLIDER, 'value'),
     Input('jobs-data','data'),
     prevent_initial_call = True
 )
-def filter_jobs_data(jobs, years, df_jobs):
+def filter_jobs_data(jobs, df_jobs):
     if jobs is None:
         raise PreventUpdate
-    
-    min_year = years[0]
-    max_year = years[1]
 
-
-    # IMPORTANT when dealing with categories (cat.remove_unused_categories)
+    # IMPORTANT for mem usage when dealing with categories (cat.remove_unused_categories)
     print('in filter_jobs_data:')
     t0 = time.time()
-    logical_array = (df_jobs[DataSchema.NAME].isin(jobs)) & (df_jobs[DataSchema.YEAR] >= int(min_year)) & (df_jobs[DataSchema.YEAR] <= int(max_year))
+    logical_array = (df_jobs[DataSchema.NAME].isin(jobs)) 
     df_jobs_filtered = df_jobs.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
     df_jobs_filtered = df_jobs_filtered.merge(df_jobs.loc[logical_array, DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
     print(time.time() - t0)
@@ -484,99 +487,220 @@ def filter_jobs_data(jobs, years, df_jobs):
     
     return df_jobs_filtered
 
-
-# ------------- callback - update initial wage only plots ----------------
-# triggers only if (1) initial wage is updated or (2) years range slider moved
-# only need to update the projected wages line plot
-# todo
-
-# ------------- callback - update plots ----------------
-# triggered (1) filtered-jobs-data/filtered-names-data stores are updated 
-# 
+#------------- callback - filtered-combined-data -----------------
+#
+# combines filtered-jobs-data and filtered-names-data
+# further processing by handling duplicates, 
 @app.callback(
+    ServersideOutput('filtered-combined-data', 'data'),
+    Input('filtered-jobs-data','data'),
+    Input('filtered-names-data','data'),
+    Input(ids.YEAR_RANGE_SLIDER, 'value'),
+    prevent_initial_call = True
+)
+def filter_combined_data(df_jobs_filtered, df_names_filtered, years):
+    min_year = years[0]
+    max_year = years[1]
+
+    # combine
+    df_combined = pd.concat([df_jobs_filtered, df_names_filtered]).astype({DataSchema.NAME: "category"})
+
+    # filter out unused years
+    logical_array = (df_combined[DataSchema.YEAR] >= int(min_year)) & (df_combined[DataSchema.YEAR] <= int(max_year))
+    df_combined_filtered = df_combined.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
+    df_combined_filtered = df_combined_filtered.merge(df_combined.loc[logical_array, DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
+    
+    # handle duplicates (same year and name)
+    # TODO: handle "duplicates" with common names
+    df_duplicates = df_combined_filtered[df_combined_filtered[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]                 # grab all duplicates (names and year)
+    df_duplicates = df_duplicates.groupby([DataSchema.YEAR, DataSchema.NAME])[DataSchema.PAY].sum().reset_index()       # add duplicates together
+    df_combined_filtered = df_combined_filtered[~df_combined_filtered[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]                  # delete duplciates from dff_combined
+    df_combined_filtered = pd.concat([df_combined_filtered, df_duplicates])                                                               # concatenate together
+
+    return df_combined_filtered
+
+# ----------------- function for resetting figures -----
+def reset_fig_lollipop():
+    fig_lollipop = go.Figure()
+
+    # templates
+    lollipop_template = go.layout.Template()
+    lollipop_template.layout = go.Layout(
+            paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+            plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+            showlegend=False,
+            title_font=dict(family="Arial", size=24),
+            yaxis=dict(linewidth=1, linecolor = "black", 
+                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+                automargin = True,
+                showline = False,
+                fixedrange = False
+            ),
+            xaxis=dict(zeroline = False, rangemode = "tozero", 
+                title = dict(text = "Compensation (USD)"),
+                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+                showline = True, linewidth=1, linecolor = "black",
+                fixedrange = False
+                )
+        )
+    fig_lollipop.update_layout(template=lollipop_template)
+    return fig_lollipop
+
+def reset_figures():
+    print('inside reset_figures:')
+    fig_real_wages = go.Figure()
+    fig_projected_wages = go.Figure()
+
+    line_template = go.layout.Template()
+    line_template.layout = go.Layout(
+            paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+            plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+            showlegend=False,
+            title_font=dict(family="Arial", size=18),
+            yaxis=dict(linewidth=1, linecolor = "black", 
+                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+                automargin = True,
+                showline = True,
+                fixedrange = False),
+            xaxis=dict(zeroline = False,
+                title = dict(text = "Compensation (USD)"),
+                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+                showline = True, linewidth=1, linecolor = "black",
+                dtick = 1,
+                fixedrange = False
+                ),
+            hovermode="x"
+        )
+    fig_real_wages.update_layout(template=line_template)
+    fig_projected_wages.update_layout(template=line_template)
+
+    # create empty dataframes to track names of traces
+    df_traces_in_real_wages = pd.DataFrame({DataSchema.NAME: [], "Index": []}).astype({DataSchema.NAME: "category", "Index": int})
+    df_traces_in_projected_wages = pd.DataFrame({DataSchema.NAME: [], "Index": []}).astype({DataSchema.NAME: "category", "Index": int})
+
+    return fig_projected_wages, fig_real_wages, df_traces_in_projected_wages, df_traces_in_real_wages
+
+# --------------- function for updating figures --------
+# triggered when (1) filtered-jobs-data/filtered-names-data stores are updated 
+#
+# this callback updates figs only by adding/"removing" traces ("not technically removing, just deleting variables")
+# also maintains a data frame ledger that tracks what names/jobs currently have traces in the figs
+@app.callback(
+        ServersideOutput('traces-in-real-wages', 'data'),
+        ServersideOutput('traces-in-projected-wages', 'data'),
         Output(ids.PROJECTED_WAGES_LINE_PLOT, "figure"),
         Output(ids.REAL_WAGES_LINE_PLOT, "figure"),
         Output(ids.LOLLIPOP_CHART, "figure"),
         Input(ids.INITIAL_WAGE_INPUT, "value"),
-        Input('filtered-jobs-data', 'data'),
-        Input('filtered-names-data', 'data'),
+        Input('filtered-combined-data', 'data'),
         State(ids.YEAR_RANGE_SLIDER, 'value'),
+        State('traces-in-real-wages','data'),
+        State('traces-in-projected-wages','data'),
+        State(ids.PROJECTED_WAGES_LINE_PLOT, "figure"),
+        State(ids.REAL_WAGES_LINE_PLOT, "figure"),
         prevent_initial_call = True,
+        blocking = True
 )
-def update_plots(initial_wage, df_jobs_filtered, df_names_filtered, years):
+def update_figures(initial_wage, df_combined_filtered, years, df_traces_in_real_wages, df_traces_in_projected_wages, fig_projected_wages, fig_real_wages):
     min_year = years[0]
     max_year = years[1]
-    if (df_jobs_filtered is None) and (df_names_filtered is None):
-        raise PreventUpdate
+
     
-    t0= time.time()
-    print('update plots - processing dataframes:')
-    dff_combined = pd.concat([df_jobs_filtered, df_names_filtered])
+    # the innermost if statement should evaluate as true when user moves the year slider or modify input function; if so, resets plots and "ledgers"
+    if fig_real_wages is not None:
+        if fig_real_wages['layout']['xaxis']['range'] is not None:
+            current_fig_min_year = -int(-fig_real_wages['layout']['xaxis']['range'][0]//1)       # this rounds up b/c axes min is less than the smallest year
+            current_fig_max_year = int(fig_real_wages['layout']['xaxis']['range'][1]//1)          # this rounds down
 
-    # handle duplicates (same year and abbreviated job)
-    dff_duplicates = dff_combined[dff_combined[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]
-    dff_duplicates = dff_duplicates.groupby([DataSchema.YEAR, DataSchema.NAME])[DataSchema.PAY].sum().reset_index()     # add duplicates together
-    dff_combined = dff_combined[~dff_combined[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]
-    dff_combined = pd.concat([dff_combined, dff_duplicates])
-    # todo- handle "duplicates" with common names
+            if (current_fig_min_year != min_year) or (current_fig_max_year != max_year) or (ctx.triggered[0]["prop_id"].split(".")[0] == ids.INITIAL_WAGE_INPUT):
+                fig_projected_wages, fig_real_wages, df_traces_in_projected_wages, df_traces_in_real_wages = reset_figures()
+                fig_lollipop = reset_fig_lollipop()
+            else:
+                # do not reset real/projected wages figs - build it from dictionaries from their existing state
+                fig_real_wages = go.Figure(fig_real_wages)
+                fig_projected_wages = go.Figure(fig_projected_wages)
+                fig_lollipop = reset_fig_lollipop()
 
-    dff_real_wages = dff_combined[[DataSchema.NAME, DataSchema.YEAR, DataSchema.PAY]]
-    dff_real_wages = dff_real_wages.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
 
-    # for projected wages and lollipop, only plot name if they have values that match the max and min years
-    dff_year_range = dff_real_wages
+    # the very first invocation of this callback is from updating 'filtered-jobs-data', triggered by the modal closing
+    if (df_traces_in_real_wages is None) or (df_traces_in_projected_wages is None):
+        fig_projected_wages, fig_real_wages, df_traces_in_projected_wages, df_traces_in_real_wages = reset_figures()
+        fig_lollipop = reset_fig_lollipop()
 
-    names_with_min = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == min_year]
-    names_with_max = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == max_year]
-    names_with_both = list(set(names_with_max) & set(names_with_min))
+    # for real wages:
+    # get names for real_wages figure
+    names_wanted_in_real_wages = set(df_combined_filtered.loc[:,DataSchema.NAME])
+    names_already_in_real_wages = set(df_traces_in_real_wages.loc[:, DataSchema.NAME])
 
-    dff_year_range = dff_year_range[dff_year_range[DataSchema.NAME].isin(names_with_both)]
-    #dff_year_range = dff_year_range.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
-    dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PAY]
-    dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PRIORPAY].shift(1)      # this requires that df is sorted by name and by year
-    dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PRIORPAY] = dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PAY]
-    dff_year_range[DataSchema.ADJUSTMENT] = (dff_year_range[DataSchema.PAY] - dff_year_range[DataSchema.PRIORPAY])/dff_year_range[DataSchema.PRIORPAY] + 1
+    # names already in real wages but not in wanted: delete traces
+    names_2delete_real_wages = list(names_already_in_real_wages.difference(names_wanted_in_real_wages))
+    logical_array = df_traces_in_real_wages[DataSchema.NAME].isin(names_2delete_real_wages)
+    indexes_2delete_real_wages = df_traces_in_real_wages.loc[logical_array, 'Index']
+    for i in indexes_2delete_real_wages:
+        fig_real_wages.data[int(i)]['x'] = []                        # awkward, but can't delete from tuple; can hide/modify inside objects
+        fig_real_wages.data[int(i)]['y'] = []  
+    
+    df_traces_in_real_wages = df_traces_in_real_wages.loc[~logical_array, :]                        # remove deleted traces from the df "ledger"
 
-    # cumulative product to get the compounded factor
-    unique_job_abbr = list(set(dff_year_range[DataSchema.NAME]))
-    for job_abbr in unique_job_abbr:
-        dff_year_range.loc[dff_year_range.loc[:,DataSchema.NAME]==job_abbr,DataSchema.CUMADJUSTMENT] = dff_year_range.loc[dff_year_range[DataSchema.NAME]==job_abbr,DataSchema.ADJUSTMENT].cumprod()
+    # names in wanted but not yet in real wages: add traces
+    names_2add_real_wages = list(names_wanted_in_real_wages.difference(names_already_in_real_wages))
+    fig_real_wage_indices = list()
+    for name in names_2add_real_wages:
+        logical_array = df_combined_filtered.loc[:,DataSchema.NAME] == name
+        x_var = df_combined_filtered.loc[logical_array,DataSchema.YEAR]
+        y_var = df_combined_filtered.loc[logical_array,DataSchema.PAY]
 
-    dff_year_range[DataSchema.PROJECTEDPAY] = dff_year_range[DataSchema.CUMADJUSTMENT]*initial_wage
+        fig_real_wages.add_trace(go.Scatter(x = x_var, y = y_var, name = name, hovertemplate = '$%{y}'))
+        fig_real_wage_indices.append(len(fig_real_wages.data) - 1)     
 
+    df_traces_in_real_wages = pd.concat([df_traces_in_real_wages, pd.DataFrame({DataSchema.NAME: names_2add_real_wages, 'Index': fig_real_wage_indices})]).astype({DataSchema.NAME: "category", "Index": int})     # update ledger
+
+    # for projected wages/lollipop:
+    # additional filter for names/jobs that do not span the years
+    names_with_min = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == min_year, DataSchema.NAME]
+    names_with_max = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == max_year, DataSchema.NAME]
+    names_wanted_in_projected_wages = set(names_with_max) & set(names_with_min)
+    names_already_in_projected_wages = set(df_traces_in_projected_wages.loc[:, DataSchema.NAME])
+
+    # names already in real wages but not in wanted: delete traces
+    names_2delete_projected_wages = list(names_already_in_projected_wages.difference(names_wanted_in_projected_wages))
+    logical_array = df_traces_in_projected_wages[DataSchema.NAME].isin(names_2delete_projected_wages)
+    indexes_2delete_projected_wages = df_traces_in_projected_wages.loc[logical_array, 'Index']
+    for i in indexes_2delete_projected_wages:
+        fig_projected_wages.data[int(i)]['x'] = []                        # awkward, but can't delete from tuple; can hide/modify inside objects
+        fig_projected_wages.data[int(i)]['y'] = []  
+    df_traces_in_projected_wages = df_traces_in_projected_wages.loc[~logical_array, :]                        # remove deleted traces from the df "ledger"
+
+    # names in wanted but not yet in real wages: add traces
+    names_2add_projected_wages = list(names_wanted_in_projected_wages.difference(names_already_in_projected_wages))
+    fig_projected_wage_indices = list()
+    for name in names_2add_projected_wages:
+        logical_array = df_combined_filtered.loc[:,DataSchema.NAME] == name
+        
+        pay = df_combined_filtered.loc[logical_array,DataSchema.PAY].to_numpy()
+        priorpay = df_combined_filtered.loc[logical_array,DataSchema.PAY].shift(1).to_numpy()
+        priorpay[0] = pay[0]
+        adjustment = (pay - priorpay)/priorpay + 1
+        cumadjustment = pd.Series(adjustment).cumprod() 
+
+        y_var = cumadjustment*initial_wage
+        x_var = df_combined_filtered.loc[logical_array,DataSchema.YEAR]
+        
+        fig_projected_wages.add_trace(go.Scatter(x = x_var, y = y_var, hovertemplate = '$%{y}', name=name))
+        fig_projected_wage_indices.append(len(fig_projected_wages.data) - 1)     
+
+    df_traces_in_projected_wages = pd.concat([df_traces_in_projected_wages, pd.DataFrame({DataSchema.NAME: names_2add_projected_wages, 'Index': fig_projected_wage_indices})]).astype({DataSchema.NAME: "category", "Index": int})     # update ledger
+    
     # create df_lollipop (pivot_wider the first and last years)
-    df_lollipop = dff_year_range[dff_year_range[DataSchema.YEAR].isin([min_year, max_year])]       
+    # df lollipop needs to be reset every time because of sorting by largest to smallest
+    df_lollipop = df_combined_filtered[df_combined_filtered[DataSchema.NAME].isin(names_wanted_in_projected_wages)]         # df lollipop uses the same wanted names as projected wages 
     df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
     # sort by ascending wages
     df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
 
-    print(time.time() - t0)
-
-    t0 = time.time()
-    print('update plots - creating figs:')
-    # create line plot
-    fig_real_wages = px.line(
-        dff_real_wages,
-        x=DataSchema.YEAR,
-        y=DataSchema.PAY,
-        color=DataSchema.NAME,
-        markers=True
-    )
-
-    fig_projected_wages = px.line(
-        dff_year_range,
-        x=DataSchema.YEAR,
-        y=DataSchema.PROJECTEDPAY,
-        color=DataSchema.NAME,
-        markers=True
-    )
-
-
     lollipop_x_start = df_lollipop[min_year].tolist()
     lollipop_x_end = df_lollipop[max_year].tolist()
     lollipop_y = df_lollipop[DataSchema.NAME].tolist()
-
-    fig_lollipop = go.Figure()
 
     for i in range(0, len(lollipop_x_start)):
         fig_lollipop.add_trace(go.Scatter(
@@ -592,7 +716,8 @@ def update_plots(initial_wage, df_jobs_filtered, df_names_filtered, years):
                     mode = "markers",
                     marker_symbol = "circle",
                     marker_size = 15,
-                    marker_color=colors.START_MARKER_COLOR)
+                    marker_color=colors.START_MARKER_COLOR,
+                )
     )
 
     fig_lollipop.add_trace(go.Scatter(
@@ -604,51 +729,191 @@ def update_plots(initial_wage, df_jobs_filtered, df_names_filtered, years):
                     marker_color=colors.END_MARKER_COLOR)
     )
 
-    # templates
-    lollipop_template = go.layout.Template()
-    lollipop_template.layout = go.Layout(
-            paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
-            plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
-            showlegend=False,
-            title_font=dict(family="Arial", size=24),
-            yaxis=dict(linewidth=1, linecolor = "black", 
-                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
-                automargin = True,
-                showline = False),
-            xaxis=dict(zeroline = False, rangemode = "tozero", 
-                title = dict(text = "Compensation (USD)"),
-                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
-                showline = True, linewidth=1, linecolor = "black",
-                )
-        )
-    fig_lollipop.update_layout(title="change in compensation from " + str(min_year) + "-" + str(max_year),
-                  template=lollipop_template)
+    return df_traces_in_real_wages, df_traces_in_projected_wages, fig_projected_wages, fig_real_wages, fig_lollipop
 
-    line_template = go.layout.Template()
-    line_template.layout = go.Layout(
-            paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
-            plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
-            showlegend=False,
-            title_font=dict(family="Arial", size=18),
-            yaxis=dict(linewidth=1, linecolor = "black", 
-                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
-                automargin = True,
-                showline = True),
-            xaxis=dict(zeroline = False,
-                title = dict(text = "Compensation (USD)"),
-                showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
-                showline = True, linewidth=1, linecolor = "black",
-                dtick = 1
-                )
-        )
-    fig_real_wages.update_layout(title="employee compensation from " + str(min_year) + "-" + str(max_year),
-                  template=line_template)
-    fig_projected_wages.update_layout(title="projected compensation from " + str(min_year) + "-" + str(max_year),
-                  template=line_template)
 
-    print(time.time() - t0)
 
-    return fig_projected_wages, fig_real_wages, fig_lollipop
+
+
+
+# # # ------------- callback - update initial wage only plots ----------------
+# # # triggers only if (1) initial wage is updated or (2) years range slider moved
+# # # only need to update the projected wages line plot
+# # # todo
+
+# # # ------------- callback - update plots ----------------
+# # # triggered (1) filtered-jobs-data/filtered-names-data stores are updated 
+# # # 
+# # #
+
+
+# @app.callback(
+#         Output(ids.PROJECTED_WAGES_LINE_PLOT, "figure"),
+#         Output(ids.REAL_WAGES_LINE_PLOT, "figure"),
+#         Output(ids.LOLLIPOP_CHART, "figure"),
+#         Input(ids.INITIAL_WAGE_INPUT, "value"),
+#         Input('filtered-combined-data', 'data'),
+#         State(ids.YEAR_RANGE_SLIDER, 'value'),
+#         prevent_initial_call = True,
+# )
+# def update_plots(initial_wage, df_combined_filtered, years):
+#     min_year = years[0]
+#     max_year = years[1]
+#     if (df_combined_filtered is None):
+#         raise PreventUpdate
+    
+#     t0= time.time()
+#     print('update plots - processing dataframes:')
+
+
+
+
+#     dff_real_wages = df_combined_filtered[[DataSchema.NAME, DataSchema.YEAR, DataSchema.PAY]]
+#     dff_real_wages = dff_real_wages.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
+
+#     # for projected wages and lollipop, only plot name if they have values that match the max and min years
+#     dff_year_range = dff_real_wages
+
+#     names_with_min = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == min_year]
+#     names_with_max = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == max_year]
+#     names_with_both = list(set(names_with_max) & set(names_with_min))
+
+#     dff_year_range = dff_year_range[dff_year_range[DataSchema.NAME].isin(names_with_both)]
+#     #dff_year_range = dff_year_range.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
+#     dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PAY]
+#     dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PRIORPAY].shift(1)      # this requires that df is sorted by name and by year
+#     dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PRIORPAY] = dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PAY]
+#     dff_year_range[DataSchema.ADJUSTMENT] = (dff_year_range[DataSchema.PAY] - dff_year_range[DataSchema.PRIORPAY])/dff_year_range[DataSchema.PRIORPAY] + 1
+
+#     # cumulative product to get the compounded factor
+#     unique_job_abbr = list(set(dff_year_range[DataSchema.NAME]))
+#     for job_abbr in unique_job_abbr:
+#         dff_year_range.loc[dff_year_range.loc[:,DataSchema.NAME]==job_abbr,DataSchema.CUMADJUSTMENT] = dff_year_range.loc[dff_year_range[DataSchema.NAME]==job_abbr,DataSchema.ADJUSTMENT].cumprod()
+
+#     dff_year_range[DataSchema.PROJECTEDPAY] = dff_year_range[DataSchema.CUMADJUSTMENT]*initial_wage
+
+#     # create df_lollipop (pivot_wider the first and last years)
+#     df_lollipop = dff_year_range[dff_year_range[DataSchema.YEAR].isin([min_year, max_year])]       
+#     df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
+#     # sort by ascending wages
+#     df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
+
+
+    
+#     print('update plots - creating figs:')
+    
+#     # create line plot
+#     fig_real_wages = px.line(
+#         dff_real_wages,
+#         x=DataSchema.YEAR,
+#         y=DataSchema.PAY,
+#         color=DataSchema.NAME,
+#         markers=True
+#     )
+
+#     dff_year_range = dff_year_range[DataSchema.NAME].cat.remove_unused_categories()
+#     fig_projected_wages = px.line(
+#         dff_year_range,
+#         x=DataSchema.YEAR,
+#         y=DataSchema.PROJECTEDPAY,
+#         color=DataSchema.NAME,
+#         markers=True
+#     )
+
+#     t2 = time.time()
+
+#     lollipop_x_start = df_lollipop[min_year].tolist()
+#     lollipop_x_end = df_lollipop[max_year].tolist()
+#     lollipop_y = df_lollipop[DataSchema.NAME].tolist()
+
+#     t3 = time.time()
+
+#     t4 = time.time()
+#     fig_lollipop = go.Figure()
+
+#     for i in range(0, len(lollipop_x_start)):
+#         fig_lollipop.add_trace(go.Scatter(
+#                     x = [lollipop_x_start[i], lollipop_x_end[i]],
+#                     y = [lollipop_y[i],lollipop_y[i]],
+#                     line=dict(color=colors.LOLLIPOP_LINE_COLOR, width=3)))
+
+
+#     fig_lollipop.add_trace(go.Scatter(
+#                     name=str(min_year) + " Compensation",
+#                     x=lollipop_x_start,
+#                     y=lollipop_y,
+#                     mode = "markers",
+#                     marker_symbol = "circle",
+#                     marker_size = 15,
+#                     marker_color=colors.START_MARKER_COLOR)
+#     )
+
+#     fig_lollipop.add_trace(go.Scatter(
+#                     name=str(max_year) + " Salary",
+#                     x=lollipop_x_end,
+#                     y=lollipop_y,
+#                     mode = "markers",
+#                     marker_size = 15,
+#                     marker_color=colors.END_MARKER_COLOR)
+#     )
+
+#     t5= time.time()
+
+#     # templates
+#     lollipop_template = go.layout.Template()
+#     lollipop_template.layout = go.Layout(
+#             paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+#             plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+#             showlegend=False,
+#             title_font=dict(family="Arial", size=24),
+#             yaxis=dict(linewidth=1, linecolor = "black", 
+#                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+#                 automargin = True,
+#                 showline = False),
+#             xaxis=dict(zeroline = False, rangemode = "tozero", 
+#                 title = dict(text = "Compensation (USD)"),
+#                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+#                 showline = True, linewidth=1, linecolor = "black",
+#                 )
+#         )
+
+#     t6 = time.time()
+
+#     fig_lollipop.update_layout(title="change in compensation from " + str(min_year) + "-" + str(max_year),
+#                   template=lollipop_template)
+
+#     t7 = time.time()
+
+#     line_template = go.layout.Template()
+#     line_template.layout = go.Layout(
+#             paper_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+#             plot_bgcolor=colors.PLOT_BACKGROUND_COLOR,
+#             showlegend=False,
+#             title_font=dict(family="Arial", size=18),
+#             yaxis=dict(linewidth=1, linecolor = "black", 
+#                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+#                 automargin = True,
+#                 showline = True),
+#             xaxis=dict(zeroline = False,
+#                 title = dict(text = "Compensation (USD)"),
+#                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+#                 showline = True, linewidth=1, linecolor = "black",
+#                 dtick = 1
+#                 )
+#         )
+    
+    
+
+#     fig_real_wages.update_layout(title="employee compensation from " + str(min_year) + "-" + str(max_year),
+#                   template=line_template)
+#     fig_projected_wages.update_layout(title="projected compensation from " + str(min_year) + "-" + str(max_year),
+#                   template=line_template)
+    
+
+#     t8 = time.time()
+#     print('t8 - t0: ' + str(t8 - t0))
+
+#     return fig_projected_wages, fig_real_wages, fig_lollipop
 
 # run script
 if __name__ == '__main__':
