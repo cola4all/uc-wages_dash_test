@@ -53,32 +53,33 @@ class ids:
     INITIAL_WAGE_CONTAINER = 'initial-wage-container'
 
 class colors:
-    PLOT_BACKGROUND_COLOR = "#c2e2f3"
+    PLOT_BACKGROUND_COLOR = "#eaf1f5"
     END_MARKER_COLOR = "#355218"
     START_MARKER_COLOR = "#759356"
     LOLLIPOP_LINE_COLOR = "#7B7B7B"
     GRID_LINES_COLOR = "#C5CCCA"
-    
+
+t0 = time.time()
+print('reading csv 1:')
 # load data
 df_jobs = pd.read_csv(
     JOB_DATA_PATH,
     usecols=[
         DataSchema.NAME,
-        DataSchema.JOB,
-        DataSchema.JOB_ABBREVIATED,
         DataSchema.PAY,
         DataSchema.YEAR],
     dtype={
-        DataSchema.NAME: str,
-        DataSchema.JOB: str,
-        DataSchema.JOB_ABBREVIATED: str,
+        DataSchema.NAME: "category",
         DataSchema.PAY: float,
-        DataSchema.YEAR: str
+        DataSchema.YEAR: int
     }
 )
-all_jobs = df_jobs[DataSchema.JOB].tolist()
+all_jobs = df_jobs[DataSchema.NAME].tolist()
 unique_jobs = list(set(all_jobs))
+print(time.time() - t0)
 
+t0 = time.time()
+print('reading csv 2:')
 df_names = pd.read_csv(
     NAME_DATA_PATH,
     usecols=[
@@ -91,11 +92,10 @@ df_names = pd.read_csv(
         DataSchema.YEAR: int
     }
 )
+print(time.time() - t0)
 
-all_names = df_names[DataSchema.NAME].tolist()
-unique_names = list(set(all_names))
-print(len(df_names))
-
+t0 = time.time()
+print('creating html components:')
 # ------------- create html components --------------------
 initial_wage_container = html.Div(
         id = ids.INITIAL_WAGE_CONTAINER,
@@ -105,14 +105,14 @@ initial_wage_container = html.Div(
             dcc.Dropdown(
                 id=ids.INITIAL_WAGE_DROPDOWN,
                 options=unique_jobs,
-                value = "Graduate Student Researcher (Step 1)",
+                value = "GSR (Step 1)",
                 placeholder="select initial wage by job or enter custom value on the right",
                 multi=False,
                 clearable=False
             ),
             dbc.Input(
                 id=ids.INITIAL_WAGE_INPUT, 
-                value = df_jobs.loc[df_jobs[DataSchema.JOB]=="Graduate Student Researcher (Step 1)", DataSchema.PAY].iloc[0],
+                value = df_jobs.loc[(df_jobs[DataSchema.NAME]=="GSR (Step 1)") & (df_jobs[DataSchema.YEAR]==2011), DataSchema.PAY].iloc[0],
                 type="number", 
                 placeholder="",
                 debounce=True)
@@ -126,11 +126,7 @@ job_container = html.Div(
         dcc.Dropdown(
             id=ids.RATE_JOB_DROPDOWN,
             options=unique_jobs,
-            value=["Graduate Student Researcher (Step 1)",
-                "Graduate Student Researcher (Step 4)",
-                "Graduate Student Researcher (Step 7)",
-                "Graduate Student Researcher (Step 10)",
-                ],
+            value=['GSR (Step 1)', 'GSR (Step 4)', 'GSR (Step 7)', 'GSR (Step 10)'],
             multi=True
         )
     ]
@@ -148,6 +144,7 @@ cola_container = html.Div(
         )
     ]
 )
+
 
 # ------------- create year range slider components ----------------
 year_range_container = html.Div(
@@ -206,11 +203,21 @@ name_add_container = html.Div(
             multi=True)
     ]
 )
+print(time.time() - t0)
 
+t0 = time.time()
+print('creating layout:')
 # create layout
 app.layout = html.Div(
     className="app-div",
     children=[
+        # data stores
+        dcc.Store(id='filtered-names-data'),
+        dcc.Store(id='filtered-jobs-data'),
+        dcc.Store(id='jobs-data'),
+        dcc.Store(id='names-data'),
+        dcc.Store(id='table-data-records-list'),
+
         html.Div(
             className = "title-container",
             children=[
@@ -256,29 +263,53 @@ app.layout = html.Div(
         html.H6('Placeholder for comparing wrt COL'),
         html.H6('Placeholder for something about data sources'),
 
-        # data stores
-        dcc.Store(id='jobs-data'),
-        dcc.Store(id='names-data'),
-        dcc.Store(id='unique-names'),
-        dcc.Store(id='table-data-records-list')
+        # landing dialog
+        # dcc.ConfirmDialog(
+        #     displayed=True,
+        #     id='landing-dialog',
+        #     message='hi'
+        # )
+        dbc.Modal(
+            children = [
+                dbc.ModalHeader(dbc.ModalTitle("Welcome!")),
+                dbc.ModalBody("hi"),
+                dbc.ModalFooter(
+                    dbc.Button("Close", id="close-modal-button")
+                ),
+            ],
+            is_open=True,
+            id='landing-modal'
+
+        )
     ]
 )
 
-# ------------- callback - filter_datastore ----------------------
+print(time.time() - t0)
+
+#--------------- callback - close modal -------
+# triggered by pressing the close button
+@app.callback(
+    Output("landing-modal", "is_open"),
+    Input("close-modal-button", "n_clicks"),
+    prevent_initial_call = True
+)
+def close_modal(n_clicks): 
+    return False
+
+# ------------- callback - save_datastore ----------------------
+# triggered by landing modal changing
 @app.callback(
     ServersideOutput("jobs-data", "data"), 
     ServersideOutput("names-data",'data'),
-    ServersideOutput('unique-names','data'),
-    Input('jobs-data', 'modified_timestamp'),
+    Input('landing-modal', 'is_open'),
     State('jobs-data', 'data'),
     State('names-data', 'data'),
-    State('unique-names', 'data'),
-    blocking = True)
-def filter_datastore(ts, jobs_data, names_data, unique_names_data):
-
+    blocking = True, 
+    prevent_initial_call = True)
+def save_datastore(ts, jobs_data, names_data):
     # names_data can be filtered by year? and earnings?
-    if (jobs_data is None) and (names_data is None) and (unique_names_data is None):
-        return df_jobs, df_names, unique_names
+    if (jobs_data is None) and (names_data is None):
+        return df_jobs, df_names
     else:
         raise PreventUpdate
     
@@ -299,7 +330,6 @@ def search_names(n_clicks, search_name, dff_names):
     # handle if names is empty
     if (search_name is None) or (dff_names is None):
         raise PreventUpdate
-
     # handle if no matches (maybe no need)
 
     # display unique matches
@@ -312,7 +342,13 @@ def search_names(n_clicks, search_name, dff_names):
 
     # handle if too many matches (todo: leave message)
     if len(unique_names_match) > 200:
-        raise PreventUpdate
+        too_many_matches = html.Div(
+            children = [
+                html.Label('Too many results to show. Please enter a more specific name.'),
+            ]
+        )
+        return too_many_matches
+
 
     # build df where each row is a unique employee w/ an employee name col and a years available col
     table_data_records_list = []
@@ -365,21 +401,22 @@ def add_name_to_dropdown(n_clicks, active_cell, data, value, options):
     Output(ids.INITIAL_WAGE_INPUT, "value"),
     Input(ids.INITIAL_WAGE_DROPDOWN, "value"),
     Input(ids.INITIAL_WAGE_INPUT, "value"),
+    Input(ids.YEAR_RANGE_SLIDER, 'value'),
     prevent_initial_call=True
 )
-def update_initial_wage_input(dropdown_value, input_value):
-    initial_year = '2011'     # for now, initial year is 2011
+def update_initial_wage_input(dropdown_value, input_value, years):
+    min_year = years[0]
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    if trigger_id == ids.INITIAL_WAGE_DROPDOWN:
+    if (trigger_id == ids.INITIAL_WAGE_DROPDOWN) or (trigger_id == ids.YEAR_RANGE_SLIDER):
         # if callback was triggered by user selecting from the dropdown menu, find the selected initial wage to display in the input field
-        logical_array = (df_jobs[DataSchema.YEAR] == initial_year) & (df_jobs[DataSchema.JOB] == dropdown_value)  # need to handle if more than 1 match
+        logical_array = (df_jobs[DataSchema.YEAR] == min_year) & (df_jobs[DataSchema.NAME] == dropdown_value)  # need to handle if more than 1 match
         if sum(logical_array) == 1: 
             input_value = df_jobs.loc[logical_array,DataSchema.PAY].iloc[0]  
         else:
             input_value = "" # default value if no string matches
-        dropdown_value = dropdown_value
+
     elif trigger_id == ids.INITIAL_WAGE_INPUT:
         # if callback was triggered by user editing the input field, set dropdown value to empty
         dropdown_value = ""
@@ -387,77 +424,142 @@ def update_initial_wage_input(dropdown_value, input_value):
 
     return dropdown_value, input_value
 
+#------------- callback - filtered-names-data -----------------
+# triggered (1) when name is added/dropped or (2) year range slider is moved
+# filters by names detected in dropdown menu and year range
+@app.callback(
+    ServersideOutput('filtered-names-data', 'data'),
+    Input(ids.NAME_ADDED_DROPDOWN, "value"),
+    Input(ids.YEAR_RANGE_SLIDER, 'value'),
+    Input('names-data','data'),
+    prevent_initial_call = True
+)
+def filter_names_data(names, years, df_names):
+    if names is None:
+        raise PreventUpdate
+
+    min_year = years[0]
+    max_year = years[1]
+
+    # IMPORTANT when dealing with categories (cat.remove_unused_categories)
+    print('in filter_names_data:')
+    t0 = time.time()
+    logical_array = (df_names[DataSchema.NAME].isin(names)) & (df_names[DataSchema.YEAR].astype(int) >= int(min_year)) & (df_names[DataSchema.YEAR].astype(int) <= int(max_year))
+    df_names_filtered = df_names.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
+    df_names_filtered = df_names_filtered.merge(df_names.loc[(df_names[DataSchema.NAME].isin(names)),DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
+    print(time.time() - t0)
+    print('size of df_names_filtered:')
+    print(df_names_filtered.info(memory_usage = 'deep'))
+
+    return df_names_filtered
+
+#------------- callback - filtered-jobs-data -----------------
+# triggered (1) when name is added/dropped or (2) year range slider is moved
+# filters by jobs detected in dropdown menu and year range
+# prevent_initial_call is false because we want this to be updated ast startup
+@app.callback(
+    ServersideOutput('filtered-jobs-data', 'data'),
+    Input(ids.RATE_JOB_DROPDOWN, "value"),
+    Input(ids.YEAR_RANGE_SLIDER, 'value'),
+    Input('jobs-data','data'),
+    prevent_initial_call = True
+)
+def filter_jobs_data(jobs, years, df_jobs):
+    if jobs is None:
+        raise PreventUpdate
+    
+    min_year = years[0]
+    max_year = years[1]
+
+
+    # IMPORTANT when dealing with categories (cat.remove_unused_categories)
+    print('in filter_jobs_data:')
+    t0 = time.time()
+    logical_array = (df_jobs[DataSchema.NAME].isin(jobs)) & (df_jobs[DataSchema.YEAR] >= int(min_year)) & (df_jobs[DataSchema.YEAR] <= int(max_year))
+    df_jobs_filtered = df_jobs.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
+    df_jobs_filtered = df_jobs_filtered.merge(df_jobs.loc[logical_array, DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
+    print(time.time() - t0)
+    print('size of df_jobs_filtered:')
+    print(df_jobs_filtered.info(memory_usage = 'deep'))
+    
+    return df_jobs_filtered
+
+
+# ------------- callback - update initial wage only plots ----------------
+# triggers only if (1) initial wage is updated or (2) years range slider moved
+# only need to update the projected wages line plot
+# todo
+
 # ------------- callback - update plots ----------------
+# triggered (1) filtered-jobs-data/filtered-names-data stores are updated 
+# 
 @app.callback(
         Output(ids.PROJECTED_WAGES_LINE_PLOT, "figure"),
         Output(ids.REAL_WAGES_LINE_PLOT, "figure"),
         Output(ids.LOLLIPOP_CHART, "figure"),
         Input(ids.INITIAL_WAGE_INPUT, "value"),
-        Input(ids.RATE_JOB_DROPDOWN, "value"),
-        Input(ids.NAME_ADDED_DROPDOWN, "value"),
-        Input(ids.YEAR_RANGE_SLIDER,"value")
+        Input('filtered-jobs-data', 'data'),
+        Input('filtered-names-data', 'data'),
+        State(ids.YEAR_RANGE_SLIDER, 'value'),
+        prevent_initial_call = True,
 )
-def update_plots(initial_wage, jobs, names, years):
-    min_year = str(years[0])
-    max_year = str(years[1])
-    ## plot using jobs data first
-    # filter data frame by job title
-    logical_array_jobs = (df_jobs[DataSchema.JOB].isin(jobs)) & (df_jobs[DataSchema.YEAR].astype(int) >= int(min_year)) & (df_jobs[DataSchema.YEAR].astype(int) <= int(max_year))
-    dff_jobs = df_jobs[logical_array_jobs]
-
-    # if names list is empty, don't bother transferring the names_df
-    if names:
-        logical_array_names = (df_names[DataSchema.NAME].isin(names)) & (df_names[DataSchema.YEAR].astype(int) >= int(min_year)) & (df_names[DataSchema.YEAR].astype(int) <= int(max_year))
-        dff_names = df_names[logical_array_names]
-        dff_names[DataSchema.JOB_ABBREVIATED] = dff_names[DataSchema.NAME]      # keep consistent with dff_jobs
-    else:
-        dff_names = pd.DataFrame()
+def update_plots(initial_wage, df_jobs_filtered, df_names_filtered, years):
+    min_year = years[0]
+    max_year = years[1]
+    if (df_jobs_filtered is None) and (df_names_filtered is None):
+        raise PreventUpdate
     
-    dff_combined = pd.concat([dff_jobs, dff_names])
+    t0= time.time()
+    print('update plots - processing dataframes:')
+    dff_combined = pd.concat([df_jobs_filtered, df_names_filtered])
 
     # handle duplicates (same year and abbreviated job)
-    dff_duplicates = dff_combined[dff_combined[[DataSchema.YEAR, DataSchema.JOB_ABBREVIATED]].duplicated(keep=False)]
-    dff_duplicates = dff_duplicates.groupby([DataSchema.YEAR, DataSchema.JOB_ABBREVIATED])[DataSchema.PAY].sum().reset_index()     # add duplicates together
-    dff_combined = dff_combined[~dff_combined[[DataSchema.YEAR, DataSchema.JOB_ABBREVIATED]].duplicated(keep=False)]
+    dff_duplicates = dff_combined[dff_combined[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]
+    dff_duplicates = dff_duplicates.groupby([DataSchema.YEAR, DataSchema.NAME])[DataSchema.PAY].sum().reset_index()     # add duplicates together
+    dff_combined = dff_combined[~dff_combined[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]
     dff_combined = pd.concat([dff_combined, dff_duplicates])
     # todo- handle "duplicates" with common names
 
-    dff_real_wages = dff_combined[[DataSchema.JOB_ABBREVIATED, DataSchema.YEAR, DataSchema.PAY]]
-    dff_real_wages = dff_real_wages.sort_values(by=[DataSchema.JOB_ABBREVIATED, DataSchema.YEAR])
+    dff_real_wages = dff_combined[[DataSchema.NAME, DataSchema.YEAR, DataSchema.PAY]]
+    dff_real_wages = dff_real_wages.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
 
     # for projected wages and lollipop, only plot name if they have values that match the max and min years
     dff_year_range = dff_real_wages
 
-    names_with_min = dff_year_range[DataSchema.JOB_ABBREVIATED].loc[dff_year_range[DataSchema.YEAR] == min_year]
-    names_with_max = dff_year_range[DataSchema.JOB_ABBREVIATED].loc[dff_year_range[DataSchema.YEAR] == max_year]
+    names_with_min = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == min_year]
+    names_with_max = dff_year_range[DataSchema.NAME].loc[dff_year_range[DataSchema.YEAR] == max_year]
     names_with_both = list(set(names_with_max) & set(names_with_min))
 
-    dff_year_range = dff_year_range[dff_year_range[DataSchema.JOB_ABBREVIATED].isin(names_with_both)]
-    #dff_year_range = dff_year_range.sort_values(by=[DataSchema.JOB_ABBREVIATED, DataSchema.YEAR])
+    dff_year_range = dff_year_range[dff_year_range[DataSchema.NAME].isin(names_with_both)]
+    #dff_year_range = dff_year_range.sort_values(by=[DataSchema.NAME, DataSchema.YEAR])
     dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PAY]
     dff_year_range[DataSchema.PRIORPAY] = dff_year_range[DataSchema.PRIORPAY].shift(1)      # this requires that df is sorted by name and by year
     dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PRIORPAY] = dff_year_range.loc[dff_year_range[DataSchema.YEAR] == min_year,DataSchema.PAY]
     dff_year_range[DataSchema.ADJUSTMENT] = (dff_year_range[DataSchema.PAY] - dff_year_range[DataSchema.PRIORPAY])/dff_year_range[DataSchema.PRIORPAY] + 1
 
     # cumulative product to get the compounded factor
-    unique_job_abbr = list(set(dff_year_range[DataSchema.JOB_ABBREVIATED]))
+    unique_job_abbr = list(set(dff_year_range[DataSchema.NAME]))
     for job_abbr in unique_job_abbr:
-        dff_year_range.loc[dff_year_range.loc[:,DataSchema.JOB_ABBREVIATED]==job_abbr,DataSchema.CUMADJUSTMENT] = dff_year_range.loc[dff_year_range[DataSchema.JOB_ABBREVIATED]==job_abbr,DataSchema.ADJUSTMENT].cumprod()
+        dff_year_range.loc[dff_year_range.loc[:,DataSchema.NAME]==job_abbr,DataSchema.CUMADJUSTMENT] = dff_year_range.loc[dff_year_range[DataSchema.NAME]==job_abbr,DataSchema.ADJUSTMENT].cumprod()
 
     dff_year_range[DataSchema.PROJECTEDPAY] = dff_year_range[DataSchema.CUMADJUSTMENT]*initial_wage
 
     # create df_lollipop (pivot_wider the first and last years)
     df_lollipop = dff_year_range[dff_year_range[DataSchema.YEAR].isin([min_year, max_year])]       
-    df_lollipop = df_lollipop.pivot(index=DataSchema.JOB_ABBREVIATED, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
+    df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
     # sort by ascending wages
     df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
 
+    print(time.time() - t0)
+
+    t0 = time.time()
+    print('update plots - creating figs:')
     # create line plot
     fig_real_wages = px.line(
         dff_real_wages,
         x=DataSchema.YEAR,
         y=DataSchema.PAY,
-        color=DataSchema.JOB_ABBREVIATED,
+        color=DataSchema.NAME,
         markers=True
     )
 
@@ -465,14 +567,14 @@ def update_plots(initial_wage, jobs, names, years):
         dff_year_range,
         x=DataSchema.YEAR,
         y=DataSchema.PROJECTEDPAY,
-        color=DataSchema.JOB_ABBREVIATED,
+        color=DataSchema.NAME,
         markers=True
     )
 
 
     lollipop_x_start = df_lollipop[min_year].tolist()
     lollipop_x_end = df_lollipop[max_year].tolist()
-    lollipop_y = df_lollipop[DataSchema.JOB_ABBREVIATED].tolist()
+    lollipop_y = df_lollipop[DataSchema.NAME].tolist()
 
     fig_lollipop = go.Figure()
 
@@ -484,7 +586,7 @@ def update_plots(initial_wage, jobs, names, years):
 
 
     fig_lollipop.add_trace(go.Scatter(
-                    name=min_year + " Compensation",
+                    name=str(min_year) + " Compensation",
                     x=lollipop_x_start,
                     y=lollipop_y,
                     mode = "markers",
@@ -494,7 +596,7 @@ def update_plots(initial_wage, jobs, names, years):
     )
 
     fig_lollipop.add_trace(go.Scatter(
-                    name=max_year + " Salary",
+                    name=str(max_year) + " Salary",
                     x=lollipop_x_end,
                     y=lollipop_y,
                     mode = "markers",
@@ -519,7 +621,7 @@ def update_plots(initial_wage, jobs, names, years):
                 showline = True, linewidth=1, linecolor = "black",
                 )
         )
-    fig_lollipop.update_layout(title="change in compensation from " + min_year + "-" + max_year,
+    fig_lollipop.update_layout(title="change in compensation from " + str(min_year) + "-" + str(max_year),
                   template=lollipop_template)
 
     line_template = go.layout.Template()
@@ -539,10 +641,12 @@ def update_plots(initial_wage, jobs, names, years):
                 dtick = 1
                 )
         )
-    fig_real_wages.update_layout(title="employee compensation from " + min_year + "-" + max_year,
+    fig_real_wages.update_layout(title="employee compensation from " + str(min_year) + "-" + str(max_year),
                   template=line_template)
-    fig_projected_wages.update_layout(title="projected compensation from " + min_year + "-" + max_year,
+    fig_projected_wages.update_layout(title="projected compensation from " + str(min_year) + "-" + str(max_year),
                   template=line_template)
+
+    print(time.time() - t0)
 
     return fig_projected_wages, fig_real_wages, fig_lollipop
 

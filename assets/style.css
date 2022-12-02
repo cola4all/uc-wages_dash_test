@@ -1,11 +1,11 @@
 html {
-    background: #c2e2f3;
+    background: #eaf1f5;
     margin: 0px;
     padding: 0px;
 }
 
 body {
-    background: #c2e2f3;
+    background: #eaf1f5;
     margin: 0px;
     padding: 0px;
 }
@@ -50,6 +50,10 @@ hr {
     border-color: #27489b;
     background-color: #395d93;
     color: #edf3f2;
+}
+
+#landing-dialog {
+
 }
 
 #name-container {
