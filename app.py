@@ -245,11 +245,8 @@ app.layout = html.Div(
                             clearable = False,
                             id = 'select-compensation-dropdown'
                         ),
-                        dcc.Loading(
-                            [html.Button('Select', id = 'select-compensation-button', className='button'),
-                            html.Button('Refresh Figures', id = 'refresh-figures-button', className='button'),]
-                        ),
-                        
+                        html.Button('Select', id = 'select-compensation-button', className='button'),
+                        html.Button('Refresh Figures', id = 'refresh-figures-button', className='button'),
                         
                     ],
                     title = 'Selected Compensation: Total Pay and Benefits',
@@ -345,7 +342,7 @@ def save_datastore(n_clicks, compensation_type):
         dtype={
             DataSchema.NAME: "category",
             compensation_type: float,
-            DataSchema.YEAR: int
+            DataSchema.YEAR: "int16"
         }
     )
     # rename the compensation column (either Total Pay or Total Pay and Benefits) to compensation
@@ -362,11 +359,14 @@ def save_datastore(n_clicks, compensation_type):
         dtype={
             DataSchema.NAME: "category",
             compensation_type: float,
-            DataSchema.YEAR: int
+            DataSchema.YEAR: "int16"
         }
     )
     df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
     print(time.time() - t0)
+
+    print('size of df_names_filtered:')
+    print(df_names.info(memory_usage = 'deep'))
 
     t0 = time.time()
 
@@ -532,8 +532,7 @@ def filter_names_data(names, df_names):
     df_names_filtered = df_names.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
     df_names_filtered = df_names_filtered.merge(df_names.loc[(df_names[DataSchema.NAME].isin(names)),DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
     print(time.time() - t0)
-    print('size of df_names_filtered:')
-    print(df_names_filtered.info(memory_usage = 'deep'))
+
 
     return df_names_filtered
 
