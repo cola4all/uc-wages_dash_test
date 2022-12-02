@@ -15,15 +15,13 @@ app.title = "UC Employee Wages Dashboard"
 
 # define paths
 APP_PATH = str(pathlib.Path(__file__).parent.resolve())
-JOB_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries.csv")
-NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
 
-# create schemas so that you don't need to remember the labels
+# create schemas so that you don't need to remember the labels when coding
 class DataSchema:
     NAME = "Employee Name"
     JOB = "Job Title"
     JOB_ABBREVIATED = "Abbreviated Job Title"
-    PAY = "Total Pay & Benefits"
+    PAY = "Compensation"
     YEAR = "Year"
     PRIORPAY = "Prior Year Pay"
     ADJUSTMENT = "Adjustment"
@@ -59,44 +57,46 @@ class colors:
     LOLLIPOP_LINE_COLOR = "#7B7B7B"
     GRID_LINES_COLOR = "#C5CCCA"
 
-t0 = time.time()
-print('reading csv 1:')
-# load data
-df_jobs = pd.read_csv(
-    JOB_DATA_PATH,
-    usecols=[
-        DataSchema.NAME,
-        DataSchema.PAY,
-        DataSchema.YEAR],
-    dtype={
-        DataSchema.NAME: "category",
-        DataSchema.PAY: float,
-        DataSchema.YEAR: int
-    }
-)
-all_jobs = df_jobs[DataSchema.NAME].tolist()
-unique_jobs = list(set(all_jobs))
-print(time.time() - t0)
+# t0 = time.time()
+# print('reading csv 1:')
+# # load data
+# df_jobs = pd.read_csv(
+#     JOB_DATA_PATH,
+#     usecols=[
+#         DataSchema.NAME,
+#         DataSchema.PAY,
+#         DataSchema.YEAR],
+#     dtype={
+#         DataSchema.NAME: "category",
+#         DataSchema.PAY: float,
+#         DataSchema.YEAR: int
+#     }
+# )
+# all_jobs = df_jobs[DataSchema.NAME].tolist()
+# unique_jobs = list(set(all_jobs))
+# print(time.time() - t0)
 
-t0 = time.time()
-print('reading csv 2:')
-df_names = pd.read_csv(
-    NAME_DATA_PATH,
-    usecols=[
-        DataSchema.NAME,
-        DataSchema.PAY,
-        DataSchema.YEAR],
-    dtype={
-        DataSchema.NAME: "category",
-        DataSchema.PAY: float,
-        DataSchema.YEAR: int
-    }
-)
-print(time.time() - t0)
+# t0 = time.time()
+# print('reading csv 2:')
+# df_names = pd.read_csv(
+#     NAME_DATA_PATH,
+#     usecols=[
+#         DataSchema.NAME,
+#         DataSchema.PAY,
+#         DataSchema.YEAR],
+#     dtype={
+#         DataSchema.NAME: "category",
+#         DataSchema.PAY: float,
+#         DataSchema.YEAR: int
+#     }
+# )
+# print(time.time() - t0)
 
-t0 = time.time()
+# t0 = time.time()
 print('creating html components:')
 # ------------- create html components --------------------
+# better way to do this? this is faster than reading a df
+unique_jobs = ['GSR (Step 1)', 'GSR (Step 2)', 'GSR (Step 3)', 'GSR (Step 4)', 'GSR (Step 5)', 'GSR (Step 6)', 'GSR (Step 7)', 'GSR (Step 8)', 'GSR (Step 9)', 'GSR (Step 10)', 'UC President']        
 initial_wage_container = html.Div(
         id = ids.INITIAL_WAGE_CONTAINER,
         className = 'dropdown-container',
@@ -112,7 +112,7 @@ initial_wage_container = html.Div(
             ),
             dbc.Input(
                 id=ids.INITIAL_WAGE_INPUT, 
-                value = df_jobs.loc[(df_jobs[DataSchema.NAME]=="GSR (Step 1)") & (df_jobs[DataSchema.YEAR]==2011), DataSchema.PAY].iloc[0],
+                value = 16698, #old code: value = df_jobs.loc[(df_jobs[DataSchema.NAME]=="GSR (Step 1)") & (df_jobs[DataSchema.YEAR]==2011), DataSchema.PAY].iloc[0],
                 type="number", 
                 placeholder="",
                 debounce=True
@@ -204,10 +204,11 @@ name_add_container = html.Div(
             multi=True)
     ]
 )
-print(time.time() - t0)
+
 
 t0 = time.time()
 print('creating layout:')
+
 # create layout
 app.layout = html.Div(
     className="app-div",
@@ -221,6 +222,8 @@ app.layout = html.Div(
         dcc.Store(id='table-data-records-list'),
         dcc.Store(id='traces-in-real-wages'),
         dcc.Store(id='traces-in-projected-wages'),
+        dcc.Store(id='schema-class'),
+       
         html.Div(
             className = "title-container",
             children=[
@@ -229,22 +232,34 @@ app.layout = html.Div(
                 html.H6('A project by Collective Thinking')
             ]
         ),
+
         dbc.Accordion(
             children = [
                 dbc.AccordionItem(
                     [
-                        html.P('Please select one of the following types of compensation:'),
+                        html.P('Select one of the following options:'),
                         dcc.Dropdown(
-                            options = ['Total Pay', 'Pay', 'Pay and Benefits'],
-                            value = ['Pay and Benefits'],
+                            options = ['Total Pay', 'Total Pay & Benefits'],
+                            value = ['Total Pay & Benefits'],
                             multi=False,
-                            clearable = False
+                            clearable = False,
+                            id = 'select-compensation-dropdown'
                         ),
+                        dcc.Loading(
+                            [html.Button('Select', id = 'select-compensation-button', className='button'),
+                            html.Button('Refresh Figures', id = 'refresh-figures-button', className='button'),]
+                        ),
+                        
+                        
                     ],
-                    title="Type of compensation"
+                    title = 'Selected Compensation: Total Pay and Benefits',
+                    id = 'compensation-accordion-item'
                 )
-            ]
+            ],
+            id = 'accordion',
+            active_item = []
         ),
+
         html.Div(
             className="inputs-container",
             children = [
@@ -298,6 +313,66 @@ app.layout = html.Div(
 )
 
 print(time.time() - t0)
+#--------------- callback - select compensation button -------
+@app.callback(
+    ServersideOutput("jobs-data", "data", arg_check=False), 
+    ServersideOutput("names-data",'data', arg_check=False),
+    Output('accordion','active_item'),
+    Output('compensation-accordion-item','title'),
+    Input('select-compensation-button','n_clicks'),
+    State('select-compensation-dropdown','value'),
+    prevent_initial_call = False,       # want to load in background
+    memoize = True,
+    blocking = True
+)
+def save_datastore(n_clicks, compensation_type):
+    compensation_type = ''.join(compensation_type)        # coerce a list to string
+    
+    if compensation_type is None:
+        raise PreventUpdate
+
+    JOB_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_job.csv")
+    NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
+    
+    t0 = time.time()
+    print('reading csv 1:')
+    # load data
+    df_jobs = pd.read_csv(JOB_DATA_PATH, 
+        usecols=[
+            DataSchema.NAME,
+            compensation_type,
+            DataSchema.YEAR],
+        dtype={
+            DataSchema.NAME: "category",
+            compensation_type: float,
+            DataSchema.YEAR: int
+        }
+    )
+    # rename the compensation column (either Total Pay or Total Pay and Benefits) to compensation
+    df_jobs = df_jobs.rename(columns={compensation_type: DataSchema.PAY})
+    print(time.time() - t0)
+
+    t0 = time.time()
+    print('reading csv 2:')
+    df_names = pd.read_csv(NAME_DATA_PATH,
+        usecols=[
+            DataSchema.NAME,
+            compensation_type,
+            DataSchema.YEAR],
+        dtype={
+            DataSchema.NAME: "category",
+            compensation_type: float,
+            DataSchema.YEAR: int
+        }
+    )
+    df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
+    print(time.time() - t0)
+
+    t0 = time.time()
+
+    title = 'Selected Compensation: ' + compensation_type
+    reset_flag = True
+    return df_jobs, df_names, [], title, 
 
 #--------------- callback - close modal -------
 # triggered by pressing the close button
@@ -311,20 +386,20 @@ def close_modal(n_clicks):
 
 # ------------- callback - save_datastore ----------------------
 # triggered by landing modal changing
-@app.callback(
-    ServersideOutput("jobs-data", "data"), 
-    ServersideOutput("names-data",'data'),
-    Input('landing-modal', 'is_open'),
-    State('jobs-data', 'data'),
-    State('names-data', 'data'),
-    blocking = True, 
-    prevent_initial_call = True)
-def save_datastore(ts, jobs_data, names_data):
-    # names_data can be filtered by year? and earnings?
-    if (jobs_data is None) and (names_data is None):
-        return df_jobs, df_names
-    else:
-        raise PreventUpdate
+# @app.callback(
+#     ServersideOutput("jobs-data", "data"), 
+#     ServersideOutput("names-data",'data'),
+#     Input('landing-modal', 'is_open'),
+#     State('jobs-data', 'data'),
+#     State('names-data', 'data'),
+#     blocking = True, 
+#     prevent_initial_call = True)
+# def save_datastore(ts, jobs_data, names_data):
+#     # names_data can be filtered by year? and earnings?
+#     if (jobs_data is None) and (names_data is None):
+#         return df_jobs, df_names
+#     else:
+#         raise PreventUpdate
     
 # ------------- callback - search names in data frame ----------------
 @app.callback(
@@ -414,9 +489,10 @@ def add_name_to_dropdown(n_clicks, active_cell, data, value, options):
     Input(ids.INITIAL_WAGE_DROPDOWN, "value"),
     Input(ids.INITIAL_WAGE_INPUT, "value"),
     Input(ids.YEAR_RANGE_SLIDER, 'value'),
+    State('jobs-data','data'),
     prevent_initial_call=True
 )
-def update_initial_wage_input(dropdown_value, input_value, years):
+def update_initial_wage_input(dropdown_value, input_value, years, df_jobs):
     min_year = years[0]
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
@@ -593,6 +669,7 @@ def reset_figures():
         Output(ids.LOLLIPOP_CHART, "figure"),
         Input(ids.INITIAL_WAGE_INPUT, "value"),
         Input('filtered-combined-data', 'data'),
+        Input('refresh-figures-button','n_clicks'),
         State(ids.YEAR_RANGE_SLIDER, 'value'),
         State('traces-in-real-wages','data'),
         State('traces-in-projected-wages','data'),
@@ -601,18 +678,18 @@ def reset_figures():
         prevent_initial_call = True,
         blocking = True
 )
-def update_figures(initial_wage, df_combined_filtered, years, df_traces_in_real_wages, df_traces_in_projected_wages, fig_projected_wages, fig_real_wages):
+def update_figures(initial_wage, df_combined_filtered, n_clicks, years, df_traces_in_real_wages, df_traces_in_projected_wages, fig_projected_wages, fig_real_wages):
     min_year = years[0]
     max_year = years[1]
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    
     # the innermost if statement should evaluate as true when user moves the year slider or modify input function; if so, resets plots and "ledgers"
     if fig_real_wages is not None:
         if fig_real_wages['layout']['xaxis']['range'] is not None:
             current_fig_min_year = -int(-fig_real_wages['layout']['xaxis']['range'][0]//1)       # this rounds up b/c axes min is less than the smallest year
             current_fig_max_year = int(fig_real_wages['layout']['xaxis']['range'][1]//1)          # this rounds down
 
-            if (current_fig_min_year != min_year) or (current_fig_max_year != max_year) or (ctx.triggered[0]["prop_id"].split(".")[0] == ids.INITIAL_WAGE_INPUT):
+            if (current_fig_min_year != min_year) or (current_fig_max_year != max_year) or (trigger_id == ids.INITIAL_WAGE_INPUT):
                 fig_projected_wages, fig_real_wages, df_traces_in_projected_wages, df_traces_in_real_wages = reset_figures()
                 fig_lollipop = reset_fig_lollipop()
             else:
@@ -623,7 +700,8 @@ def update_figures(initial_wage, df_combined_filtered, years, df_traces_in_real_
 
 
     # the very first invocation of this callback is from updating 'filtered-jobs-data', triggered by the modal closing
-    if (df_traces_in_real_wages is None) or (df_traces_in_projected_wages is None):
+    if (df_traces_in_real_wages is None) or (df_traces_in_projected_wages is None) or (trigger_id == 'refresh-figures-button'):
+        reset_flag = False
         fig_projected_wages, fig_real_wages, df_traces_in_projected_wages, df_traces_in_real_wages = reset_figures()
         fig_lollipop = reset_fig_lollipop()
 
@@ -693,7 +771,7 @@ def update_figures(initial_wage, df_combined_filtered, years, df_traces_in_real_
     
     # create df_lollipop (pivot_wider the first and last years)
     # df lollipop needs to be reset every time because of sorting by largest to smallest
-    df_lollipop = df_combined_filtered[df_combined_filtered[DataSchema.NAME].isin(names_wanted_in_projected_wages)]         # df lollipop uses the same wanted names as projected wages 
+    df_lollipop = df_combined_filtered[df_combined_filtered[DataSchema.NAME].isin(names_wanted_in_projected_wages)]         # df lollipop uses the same wanted names as projected wages   
     df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
     # sort by ascending wages
     df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
@@ -917,4 +995,4 @@ def update_figures(initial_wage, df_combined_filtered, years, df_traces_in_real_
 
 # run script
 if __name__ == '__main__':
-    app.run_server(debug=True)
+     app.run_server(debug=True)
