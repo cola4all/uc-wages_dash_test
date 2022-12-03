@@ -124,16 +124,16 @@ initial_wage_container = html.Div(
         id = ids.INITIAL_WAGE_CONTAINER,
         className = 'dropdown-container',
         children = [
-            html.Label('Set an initial wage:', id="initial-wage-label"),
+            html.P('Set a starting compensation by selecting a job or entering a custom amount:'),
             dcc.Dropdown(
                 id=ids.INITIAL_WAGE_DROPDOWN,
                 options=unique_jobs,
                 value = "GSR (Step 1)",
-                placeholder="select initial wage by job or enter custom value on the right",
+                placeholder="Set an starting compensation based on job or enter custom value on the right",
                 multi=False,
                 clearable=False
             ),
-            dbc.Input(
+            dcc.Input(
                 id=ids.INITIAL_WAGE_INPUT, 
                 value = 16698, #old code: value = df_jobs.loc[(df_jobs[DataSchema.NAME]=="GSR (Step 1)") & (df_jobs[DataSchema.YEAR]==2011), DataSchema.PAY].iloc[0],
                 type="number", 
@@ -146,7 +146,7 @@ initial_wage_container = html.Div(
 job_container = html.Div(
     className="dropdown-container",
     children = [
-        html.Label("Select Job", id="job-label"),
+        html.P("Select a job to add to the plots:", id="job-label"),
         dcc.Dropdown(
             id=ids.RATE_JOB_DROPDOWN,
             options=unique_jobs,
@@ -156,18 +156,19 @@ job_container = html.Div(
     ]
 )
 
-cola_container = html.Div(
-    className='dropdown-container',
-    children = [
-        html.Label("Select COLA", id="cola-label"),
-        dcc.Dropdown(
-            id=ids.RATE_COLA_DROPDOWN,
-            options=["Santa Barbara", "Los Angeles", "San Francisco"],
-            value="Santa Barbara",
-            multi=False
-        )
-    ]
-)
+# TODO: implement cola
+# cola_container = html.Div(
+#     className='dropdown-container',
+#     children = [
+#         html.Label("Select COLA", id="cola-label"),
+#         dcc.Dropdown(
+#             id=ids.RATE_COLA_DROPDOWN,
+#             options=["Santa Barbara", "Los Angeles", "San Francisco"],
+#             value="Santa Barbara",
+#             multi=False
+#         )
+#     ]
+# )
 
 
 # ------------- create year range slider components ----------------
@@ -175,7 +176,6 @@ year_range_container = html.Div(
     id = ids.YEAR_RANGE_CONTAINER,
     className='dropdown-container',
     children = [
-        html.Label('Years Range:', id='year-range-label'),
         dcc.RangeSlider(
             min = 2011, 
             max = 2021, 
@@ -204,7 +204,7 @@ year_range_container = html.Div(
 name_search_container = html.Div(
         id = ids.NAME_SEARCH_CONTAINER,
         children = [
-            html.Label('Search for a name:'),
+            html.Label('Enter name:'),
             dcc.Input(id = ids.NAME_SEARCH_INPUT),
             html.Button('Search', id = ids.NAME_SEARCH_BUTTON, className='button'),
         ]
@@ -247,79 +247,94 @@ app.layout = html.Div(
         dcc.Store(id='traces-in-projected-wages'),
         dcc.Store(id='schema-class'),
        
-        html.Div(
+        html.Header(
             className = "title-container",
             children=[
-                html.H1(app.title),
-                html.H5('How does your compensation stack up?'),
-                html.H6('A project by Collective Thinking')
+                html.H1(app.title)
             ]
         ),
 
         dbc.Accordion(
             children = [
                 dbc.AccordionItem(
-                    [
+                    children = [
                         html.P('Select one of the following options:'),
                         dcc.Dropdown(
                             options = ['Total Pay', 'Total Pay & Benefits'],
-                            value = ['Total Pay & Benefits'],
+                            value = 'Total Pay & Benefits',
                             multi=False,
                             clearable = False,
                             id = 'select-compensation-dropdown'
                         ),
-                        html.Button('Select', id = 'select-compensation-button', className='button'),
-                        html.Button('Refresh Figures', id = 'refresh-figures-button', className='button'),
-                        
+                        dbc.Button('Refresh Figures', id = 'refresh-figures-button', className='button'),
                     ],
-                    title = 'Selected Compensation: Total Pay and Benefits',
+                    title = 'Selected Compensation: Total Pay & Benefits',
                     id = 'compensation-accordion-item'
+                ),
+                dbc.AccordionItem(
+                    children = [
+                        initial_wage_container,
+                    ],
+                    title = 'Starting Compensation',
+                    id = 'starting-compensation-accordion-item'
+                ),
+                dbc.AccordionItem(
+                    children = [
+                        year_range_container,
+                    ],
+                    title = 'Years Range',
+                    id = 'years-range-accordion-item'
+                ),
+                dbc.AccordionItem(
+                    children = [
+                        job_container,
+                    ],
+                    title = 'Compare Jobs',
+                    id = 'compare-jobs-accordion-item'
+                ),
+                dbc.AccordionItem(
+                    children = [
+                        dcc.Loading(
+                                id = 'name-container',
+                                children = [
+                                    name_search_container,
+                                    name_search_results_container,
+                                    name_add_container
+                                ]
+                              
+                        ),
+                    ],
+                    title = 'Compare Employees'
                 )
             ],
             id = 'accordion',
-            active_item = []
-        ),
-
-        html.Div(
-            className="inputs-container",
-            children = [
-                initial_wage_container,
-                job_container,
-                cola_container,
-                year_range_container
-            ]
-        ),
-        dcc.Loading(
-            html.Div(
-                id = 'name-container',
-                children = [
-                    name_search_container,
-                    name_search_results_container,
-                    name_add_container
-                ]
-            ),  
+            always_open = True,
+            active_item = ['item-1', 'item-2', 'item-3', 'item-4']    # this needs to be string id (not assigned id)
         ),
         html.Hr(),
-        html.H6('This first plot displays the raw compensation data from the data sources.'),
+        html.H4('How does your compensation stack up against other UC employees?'),
+        html.H6('Hover around a data point to compare the compensation of all plotted employees for that year.'),
         dcc.Graph(id=ids.REAL_WAGES_LINE_PLOT, config={'displayModeBar': False}),
         html.Hr(),
-        html.H4('Ever wonder what your compensation might be if it grew at the same rate as other UC employees?'), 
+        html.H4('Ever wonder what your compensation might be if it grew at the same rate as your peers or bosses?'), 
         html.H6('This plot displays how your specified initial wage would change if you received the same year-to-year percentage-based raises as other employees.'),
-        html.H6('(Note that only people with data that spans the selected years are displayed here.)'),   
+        dcc.Markdown("**If you're not seeing an employee that you added, try narrowing the year range. Only employees with data that spans those years will be plotted.**"),
         dcc.Graph(id=ids.PROJECTED_WAGES_LINE_PLOT, config={'displayModeBar': False}),
         html.Hr(),
-        html.H4('Percentage-based raises are inherently regressive.'),
-        html.H6('Given the same percentage raise, higher-earners receive a larger raise in absolute dollar amount compared to lower-earners. This discrepancy is drastic when comparing two employees with vastly different earnings. Compounded year after year, this discrepancy can grow at an exorbitant rate.'),
+        html.H4('How do your raises compare in terms of absolute dollar amounts?'), 
         html.H6('The following plot displays the absolute change in compensation over the selected time range. By comparing the length of the line connecting the dots, you can get a sense of the absolute change in compensation between the employees.'),
         dcc.Graph(id=ids.LOLLIPOP_CHART, config={'displayModeBar': False}),
         html.Hr(),
-        html.H6('Placeholder for comparing wrt COL'),
-        html.H6('Placeholder for something about data sources'),
-
+        html.H6('Even among graduate student researchers, applying the same percentage-based raises across all payscales breeds inequity. From 2011 to 2021, the lowest-paid graduate student researchers saw a $5k increase while the highest-paid saw a $10k increase (shown in the default plots).'),
+        html.H6('However, this is nothing compared to the massive raises (in absolute dollar terms) of employees with vastly greater earnings (add UC President to the plots, for example).'),
+        html.H6("For whatever reason, we tend to talk about raises as a percentage of our previous year's income. By making this our point of reference, we benefit individuals who are already making more by giving them disproportionately larger raises in terms of absolute dollars. Compounded year after year, this inequity becomes exorbitant."),
+        dcc.Markdown("**Percentage-based raises are inherently regressive**. This really is all common sense, but percentages can misdirect our sense of outrage by obscuring absolute dollar amounts. To put this into context, graduate student workers making $27K asking for a 100% raise seems unreasonable. Meanwhile, chancellors getting up to a 28% raise on $450k was approved earlier this year. At the end of the day, one of these people gets an extra $27k that goes towards cost of living while the other gets $120k that goes towards idk a yacht."),
+        dcc.Markdown("If we want to see raises that are truly equitable, we need to **tie our wages to our cost of living**, not our prior year's salary."),
         dbc.Modal(
             children = [
                 dbc.ModalHeader(dbc.ModalTitle("UC My Wages")),
-                dbc.ModalBody("Welcome! This dashboard visualizes publicly available data on UC employee compensation. Please bear with us if you encounter any bugs, as this project is under active development."),
+                dbc.ModalBody("Welcome! This dashboard visualizes publicly available data on UC employee compensation."),
+                dbc.ModalBody("As this project is under active development, please bear with us if you encounter any bugs."),
                 dbc.ModalFooter(
                     dbc.Button("Close", id="close-modal-button")
                 ),
@@ -336,7 +351,6 @@ print(time.time() - t0)
 #--------------- callback - dropdown -------
 # also - dsiable/enable refresh plot
 @app.callback(
-    Output('accordion','active_item'),
     Output('compensation-accordion-item','title'),
     Input('select-compensation-dropdown','value'),
     prevent_initial_call = True,       # want to load in background
@@ -349,9 +363,9 @@ def save_datastore(compensation_type):
 
     DataSchema.PAY = compensation_type      # bad: changing global variable - another way?
         
-    title = 'Selected Compensation: ' + compensation_type
+    title = 'Type of Compensation: ' + compensation_type
 
-    return [], title
+    return title
 
 #--------------- callback - close modal -------
 # triggered by pressing the close button
@@ -591,13 +605,13 @@ def reset_fig_lollipop():
                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
                 automargin = True,
                 showline = False,
-                fixedrange = False
+                fixedrange = True
             ),
             xaxis=dict(zeroline = False, rangemode = "tozero", 
                 title = dict(text = "Compensation (USD)"),
                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
                 showline = True, linewidth=1, linecolor = "black",
-                fixedrange = False
+                fixedrange = True
                 )
         )
     fig_lollipop.update_layout(template=lollipop_template)
@@ -616,15 +630,15 @@ def reset_figures():
             title_font=dict(family="Arial", size=18),
             yaxis=dict(linewidth=1, linecolor = "black", 
                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
+                title = dict(text = "Compensation (USD)"),
                 automargin = True,
                 showline = True,
-                fixedrange = False),
+                fixedrange = True),
             xaxis=dict(zeroline = False,
-                title = dict(text = "Compensation (USD)"),
                 showgrid=True,  gridcolor = colors.GRID_LINES_COLOR, gridwidth=1,
                 showline = True, linewidth=1, linecolor = "black",
                 dtick = 1,
-                fixedrange = False
+                fixedrange = True
                 ),
             hovermode="x"
         )
@@ -753,40 +767,41 @@ def update_figures(initial_wage, df_combined_filtered, n_clicks, years, df_trace
     # create df_lollipop (pivot_wider the first and last years)
     # df lollipop needs to be reset every time because of sorting by largest to smallest
     df_lollipop = df_combined_filtered[df_combined_filtered[DataSchema.NAME].isin(names_wanted_in_projected_wages)]         # df lollipop uses the same wanted names as projected wages   
-    df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
-    # sort by ascending wages
-    df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
+    if len(df_lollipop) > 0:
+        df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
+        # sort by ascending wages
+        df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
 
-    lollipop_x_start = df_lollipop[min_year].tolist()
-    lollipop_x_end = df_lollipop[max_year].tolist()
-    lollipop_y = df_lollipop[DataSchema.NAME].tolist()
+        lollipop_x_start = df_lollipop[min_year].tolist()
+        lollipop_x_end = df_lollipop[max_year].tolist()
+        lollipop_y = df_lollipop[DataSchema.NAME].tolist()
 
-    for i in range(0, len(lollipop_x_start)):
+        for i in range(0, len(lollipop_x_start)):
+            fig_lollipop.add_trace(go.Scatter(
+                        x = [lollipop_x_start[i], lollipop_x_end[i]],
+                        y = [lollipop_y[i],lollipop_y[i]],
+                        line=dict(color=colors.LOLLIPOP_LINE_COLOR, width=3)))
+
+
         fig_lollipop.add_trace(go.Scatter(
-                    x = [lollipop_x_start[i], lollipop_x_end[i]],
-                    y = [lollipop_y[i],lollipop_y[i]],
-                    line=dict(color=colors.LOLLIPOP_LINE_COLOR, width=3)))
+                        name=str(min_year) + " Compensation",
+                        x=lollipop_x_start,
+                        y=lollipop_y,
+                        mode = "markers",
+                        marker_symbol = "circle",
+                        marker_size = 15,
+                        marker_color=colors.START_MARKER_COLOR,
+                    )
+        )
 
-
-    fig_lollipop.add_trace(go.Scatter(
-                    name=str(min_year) + " Compensation",
-                    x=lollipop_x_start,
-                    y=lollipop_y,
-                    mode = "markers",
-                    marker_symbol = "circle",
-                    marker_size = 15,
-                    marker_color=colors.START_MARKER_COLOR,
-                )
-    )
-
-    fig_lollipop.add_trace(go.Scatter(
-                    name=str(max_year) + " Compensation",
-                    x=lollipop_x_end,
-                    y=lollipop_y,
-                    mode = "markers",
-                    marker_size = 15,
-                    marker_color=colors.END_MARKER_COLOR)
-    )
+        fig_lollipop.add_trace(go.Scatter(
+                        name=str(max_year) + " Compensation",
+                        x=lollipop_x_end,
+                        y=lollipop_y,
+                        mode = "markers",
+                        marker_size = 15,
+                        marker_color=colors.END_MARKER_COLOR)
+        )
 
     return df_traces_in_real_wages, df_traces_in_projected_wages, fig_projected_wages, fig_real_wages, fig_lollipop
 
