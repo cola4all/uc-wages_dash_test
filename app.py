@@ -21,7 +21,9 @@ class DataSchema:
     NAME = "Employee Name"
     JOB = "Job Title"
     JOB_ABBREVIATED = "Abbreviated Job Title"
-    PAY = "Compensation"
+    TOTAL_PAY = 'Total Pay'
+    TOTAL_PAY_AND_BENEFITS = 'Total Pay & Benefits'
+    PAY = 'Total Pay & Benefits'
     YEAR = "Year"
     PRIORPAY = "Prior Year Pay"
     ADJUSTMENT = "Adjustment"
@@ -91,6 +93,51 @@ class colors:
 #     }
 # )
 # print(time.time() - t0)
+JOB_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_job.csv")
+NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
+
+t0 = time.time()
+print('reading csv 1:')
+# load data
+df_jobs = pd.read_csv(JOB_DATA_PATH, 
+    usecols=[
+        DataSchema.NAME,
+        DataSchema.TOTAL_PAY,
+        DataSchema.TOTAL_PAY_AND_BENEFITS,
+        DataSchema.YEAR],
+    dtype={
+        DataSchema.NAME: "category",
+        DataSchema.TOTAL_PAY: float,
+        DataSchema.TOTAL_PAY_AND_BENEFITS: float,
+        DataSchema.YEAR: "int16"
+    }
+)
+# rename the compensation column (either Total Pay or Total Pay and Benefits) to compensation
+#df_jobs = df_jobs.rename(columns={compensation_type: DataSchema.PAY})
+print(time.time() - t0)
+
+t0 = time.time()
+print('reading csv 2:')
+df_names = pd.read_csv(NAME_DATA_PATH,
+    usecols=[
+        DataSchema.NAME,
+        DataSchema.TOTAL_PAY,
+        DataSchema.TOTAL_PAY_AND_BENEFITS,
+        DataSchema.YEAR],
+    dtype={
+        DataSchema.NAME: "category",
+        DataSchema.TOTAL_PAY: float,
+        DataSchema.TOTAL_PAY_AND_BENEFITS: float,
+        DataSchema.YEAR: "int16"
+    }
+)
+#df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
+print(time.time() - t0)
+
+print('size of df_names_filtered:')
+print(df_names.info(memory_usage = 'deep'))
+
+t0 = time.time()
 
 # t0 = time.time()
 print('creating html components:')
@@ -328,51 +375,11 @@ def save_datastore(n_clicks, compensation_type):
     if compensation_type is None:
         raise PreventUpdate
 
-    JOB_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_job.csv")
-    NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
-    
-    t0 = time.time()
-    print('reading csv 1:')
-    # load data
-    df_jobs = pd.read_csv(JOB_DATA_PATH, 
-        usecols=[
-            DataSchema.NAME,
-            compensation_type,
-            DataSchema.YEAR],
-        dtype={
-            DataSchema.NAME: "category",
-            compensation_type: float,
-            DataSchema.YEAR: "int16"
-        }
-    )
-    # rename the compensation column (either Total Pay or Total Pay and Benefits) to compensation
-    df_jobs = df_jobs.rename(columns={compensation_type: DataSchema.PAY})
-    print(time.time() - t0)
-
-    t0 = time.time()
-    print('reading csv 2:')
-    df_names = pd.read_csv(NAME_DATA_PATH,
-        usecols=[
-            DataSchema.NAME,
-            compensation_type,
-            DataSchema.YEAR],
-        dtype={
-            DataSchema.NAME: "category",
-            compensation_type: float,
-            DataSchema.YEAR: "int16"
-        }
-    )
-    df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
-    print(time.time() - t0)
-
-    print('size of df_names_filtered:')
-    print(df_names.info(memory_usage = 'deep'))
-
-    t0 = time.time()
-
+    DataSchema.PAY = compensation_type
+        
     title = 'Selected Compensation: ' + compensation_type
-    reset_flag = True
-    return df_jobs, df_names, [], title, 
+
+    return df_jobs, df_names, [], title
 
 #--------------- callback - close modal -------
 # triggered by pressing the close button
