@@ -88,6 +88,16 @@ print(time.time() - t0)
 t0 = time.time()
 print('reading csv 2:')
 df_names = pd.read_parquet(NAME_DATA_PATH, engine='fastparquet')
+print(time.time() - t0)
+
+print('size of df_names_filtered:')
+print(df_names.info(memory_usage = 'deep'))
+
+t0 = time.time()
+
+
+
+
 # df_names = pd.read_csv(NAME_DATA_PATH,
 #     usecols=[
 #         DataSchema.NAME,
@@ -103,12 +113,7 @@ df_names = pd.read_parquet(NAME_DATA_PATH, engine='fastparquet')
 # )
 # df_names[DataSchema.YEAR] = df_names[DataSchema.YEAR].astype(cat_type)
 #df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
-print(time.time() - t0)
 
-print('size of df_names_filtered:')
-print(df_names.info(memory_usage = 'deep'))
-
-t0 = time.time()
 
 # t0 = time.time()
 print('creating html components:')
