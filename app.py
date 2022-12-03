@@ -99,6 +99,8 @@ NAME_DATA_PATH =  os.path.join(APP_PATH, "assets", "salaries_by_name.csv")
 t0 = time.time()
 print('reading csv 1:')
 # load data
+cat_type = pd.api.types.CategoricalDtype(categories=['2011','2012','2013','2014','2015','2016','2017','2018','2019','2020','2021'], ordered=True)
+
 df_jobs = pd.read_csv(JOB_DATA_PATH, 
     usecols=[
         DataSchema.NAME,
@@ -109,9 +111,10 @@ df_jobs = pd.read_csv(JOB_DATA_PATH,
         DataSchema.NAME: "category",
         DataSchema.TOTAL_PAY: float,
         DataSchema.TOTAL_PAY_AND_BENEFITS: float,
-        DataSchema.YEAR: "int16"
+        DataSchema.YEAR: "category"
     }
 )
+df_jobs[DataSchema.YEAR] = df_jobs[DataSchema.YEAR].astype(cat_type)
 # rename the compensation column (either Total Pay or Total Pay and Benefits) to compensation
 #df_jobs = df_jobs.rename(columns={compensation_type: DataSchema.PAY})
 print(time.time() - t0)
@@ -126,11 +129,12 @@ df_names = pd.read_csv(NAME_DATA_PATH,
         DataSchema.YEAR],
     dtype={
         DataSchema.NAME: "category",
-        DataSchema.TOTAL_PAY: float,
-        DataSchema.TOTAL_PAY_AND_BENEFITS: float,
-        DataSchema.YEAR: "int16"
+        DataSchema.TOTAL_PAY: "int32",
+        DataSchema.TOTAL_PAY_AND_BENEFITS: "int32",
+        DataSchema.YEAR: "category"
     }
 )
+df_names[DataSchema.YEAR] = df_names[DataSchema.YEAR].astype(cat_type)
 #df_names = df_names.rename(columns={compensation_type: DataSchema.PAY})
 print(time.time() - t0)
 
@@ -365,7 +369,7 @@ print(time.time() - t0)
     Output('compensation-accordion-item','title'),
     Input('select-compensation-button','n_clicks'),
     State('select-compensation-dropdown','value'),
-    prevent_initial_call = False,       # want to load in background
+    prevent_initial_call = True,       # want to load in background
     memoize = True,
     blocking = True
 )
@@ -506,7 +510,7 @@ def update_initial_wage_input(dropdown_value, input_value, years, df_jobs):
 
     if (trigger_id == ids.INITIAL_WAGE_DROPDOWN) or (trigger_id == ids.YEAR_RANGE_SLIDER):
         # if callback was triggered by user selecting from the dropdown menu, find the selected initial wage to display in the input field
-        logical_array = (df_jobs[DataSchema.YEAR] == min_year) & (df_jobs[DataSchema.NAME] == dropdown_value)  # need to handle if more than 1 match
+        logical_array = (df_jobs[DataSchema.YEAR] == str(min_year)) & (df_jobs[DataSchema.NAME] == dropdown_value)  # need to handle if more than 1 match
         if sum(logical_array) == 1: 
             input_value = df_jobs.loc[logical_array,DataSchema.PAY].iloc[0]  
         else:
@@ -588,14 +592,15 @@ def filter_combined_data(df_jobs_filtered, df_names_filtered, years):
     df_combined = pd.concat([df_jobs_filtered, df_names_filtered]).astype({DataSchema.NAME: "category"})
 
     # filter out unused years
-    logical_array = (df_combined[DataSchema.YEAR] >= int(min_year)) & (df_combined[DataSchema.YEAR] <= int(max_year))
+    logical_array = (df_combined[DataSchema.YEAR] >= str(min_year)) & (df_combined[DataSchema.YEAR] <= str(max_year))
     df_combined_filtered = df_combined.loc[logical_array, [DataSchema.PAY, DataSchema.YEAR]]
     df_combined_filtered = df_combined_filtered.merge(df_combined.loc[logical_array, DataSchema.NAME].cat.remove_unused_categories(),left_index=True, right_index=True)
     
     # handle duplicates (same year and name)
     # TODO: handle "duplicates" with common names
     df_duplicates = df_combined_filtered[df_combined_filtered[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]                 # grab all duplicates (names and year)
-    df_duplicates = df_duplicates.groupby([DataSchema.YEAR, DataSchema.NAME])[DataSchema.PAY].sum().reset_index()       # add duplicates together
+    if len(df_duplicates) > 0:
+        df_duplicates = df_duplicates.groupby([DataSchema.YEAR, DataSchema.NAME])[DataSchema.PAY].sum().reset_index()       # add duplicates together
     df_combined_filtered = df_combined_filtered[~df_combined_filtered[[DataSchema.YEAR, DataSchema.NAME]].duplicated(keep=False)]                  # delete duplciates from dff_combined
     df_combined_filtered = pd.concat([df_combined_filtered, df_duplicates])                                                               # concatenate together
 
@@ -741,8 +746,8 @@ def update_figures(initial_wage, df_combined_filtered, n_clicks, years, df_trace
 
     # for projected wages/lollipop:
     # additional filter for names/jobs that do not span the years
-    names_with_min = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == min_year, DataSchema.NAME]
-    names_with_max = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == max_year, DataSchema.NAME]
+    names_with_min = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == str(min_year), DataSchema.NAME]
+    names_with_max = df_combined_filtered.loc[df_combined_filtered[DataSchema.YEAR] == str(max_year), DataSchema.NAME]
     names_wanted_in_projected_wages = set(names_with_max) & set(names_with_min)
     names_already_in_projected_wages = set(df_traces_in_projected_wages.loc[:, DataSchema.NAME])
 
@@ -780,10 +785,10 @@ def update_figures(initial_wage, df_combined_filtered, n_clicks, years, df_trace
     df_lollipop = df_combined_filtered[df_combined_filtered[DataSchema.NAME].isin(names_wanted_in_projected_wages)]         # df lollipop uses the same wanted names as projected wages   
     df_lollipop = df_lollipop.pivot(index=DataSchema.NAME, columns=DataSchema.YEAR, values=DataSchema.PAY).reset_index()
     # sort by ascending wages
-    df_lollipop = df_lollipop.sort_values(by=[max_year, min_year], ascending=True)
+    df_lollipop = df_lollipop.sort_values(by=[str(max_year), str(min_year)], ascending=True)
 
-    lollipop_x_start = df_lollipop[min_year].tolist()
-    lollipop_x_end = df_lollipop[max_year].tolist()
+    lollipop_x_start = df_lollipop[str(min_year)].tolist()
+    lollipop_x_end = df_lollipop[str(max_year)].tolist()
     lollipop_y = df_lollipop[DataSchema.NAME].tolist()
 
     for i in range(0, len(lollipop_x_start)):
